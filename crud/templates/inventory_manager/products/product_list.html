@@ -108,15 +108,15 @@
                         <div class="text-sm text-gray-900">₱{{ product.price|floatformat:2 }}</div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm text-gray-900">{{ product.stock_quantity }}</div>
+                        <div class="text-sm text-gray-900">{{ product.stock }}</div>
                         <div class="text-xs text-gray-500">Min: {{ product.minimum_stock_level }}</div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap">
-                        {% if product.stock_quantity == 0 %}
+                        {% if product.stock == 0 %}
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
                             Out of Stock
                         </span>
-                        {% elif product.stock_quantity <= product.minimum_stock_level %}
+                        {% elif product.stock <= product.minimum_stock_level %}
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
                             Low Stock
                         </span>

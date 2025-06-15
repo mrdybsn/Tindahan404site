@@ -98,14 +98,10 @@
                             <div class="text-sm text-gray-900">{{ product.category.category_name }}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap">
-                            {% if product.stock_quantity == 0 %}
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
-                                Out of Stock
-                            </span>
+                            {% if product.stock == 0 %}
+                            <span class="text-red-600 font-medium">Out of Stock</span>
                             {% else %}
-                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800">
-                                {{ product.stock_quantity }}
-                            </span>
+                            {{ product.stock }}
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">

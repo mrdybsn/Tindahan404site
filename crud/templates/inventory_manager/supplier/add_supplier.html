@@ -1,0 +1,108 @@
+{% extends 'layout/base_manager.html' %}
+{% load static %}
+
+{% block title %}Add Supplier{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="page-header">
+        <h1 class="text-2xl font-bold text-gray-900">Add New Supplier</h1>
+        <a href="{% url 'crud:supplier_list' %}" class="add-button bg-gray-600 hover:bg-gray-700"><span class="material-icons mr-2">arrow_back</span>Back to Suppliers</a>
+    </div>
+
+    {% if messages %}
+    <div class="mb-6">
+        {% for message in messages %}
+        <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-red-100 text-red-700{% elif message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <form method="POST" class="space-y-6">
+            {% csrf_token %}
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-6">
+                    <h2 class="text-lg font-semibold text-gray-800">Basic Information</h2>
+                    
+                    <div>
+                        <label for="company_name" class="form-label">Company Name</label>
+                        <input type="text" 
+                               id="company_name" 
+                               name="company_name" 
+                               placeholder="Enter company name"
+                               required 
+                               class="form-input">
+                    </div>
+
+                    <div>
+                        <label for="contact_person" class="form-label">Contact Person</label>
+                        <input type="text" 
+                               id="contact_person" 
+                               name="contact_person" 
+                               placeholder="Enter contact person name"
+                               required 
+                               class="form-input">
+                    </div>
+
+                    <div>
+                        <label for="email" class="form-label">Email</label>
+                        <input type="email" 
+                               id="email" 
+                               name="email" 
+                               placeholder="Enter email address"
+                               required 
+                               class="form-input">
+                    </div>
+
+                    <div>
+                        <label for="contact_number" class="form-label">Contact Number</label>
+                        <input type="tel" 
+                               id="contact_number" 
+                               name="contact_number" 
+                               placeholder="Enter contact number"
+                               required 
+                               class="form-input">
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <h2 class="text-lg font-semibold text-gray-800">Address Information</h2>
+                    
+                    <div>
+                        <label for="address" class="form-label">Address</label>
+                        <textarea name="address" 
+                                  id="address" 
+                                  rows="3"
+                                  placeholder="Enter complete address"
+                                  required 
+                                  class="form-input"></textarea>
+                    </div>
+
+                    <div class="mt-4">
+                        <div class="flex items-center">
+                            <input type="checkbox" 
+                                   id="is_active" 
+                                   name="is_active" 
+                                   checked 
+                                   class="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded">
+                            <label for="is_active" class="ml-2 block text-sm text-gray-900">
+                                Active Supplier
+                            </label>
+                        </div>
+                        <p class="mt-1 text-sm text-gray-500">Uncheck this if you want to deactivate this supplier.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-4 pt-6 border-t">
+                <a href="{% url 'crud:supplier_list' %}" class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Cancel</a>
+                <button type="submit" class="add-button px-6 py-2">Add Supplier</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %} 

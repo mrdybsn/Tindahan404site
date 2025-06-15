@@ -144,6 +144,7 @@ def admin_dashboard(request):
     last_month = today - timezone.timedelta(days=30)
     two_months_ago = last_month - timezone.timedelta(days=30)
 
+    # Calculate sales metrics
     current_month_sales = Sale.objects.filter(transaction_date__gte=last_month).aggregate(
         total=Sum('total_amount'))['total'] or 0
     previous_month_sales = Sale.objects.filter(
@@ -166,6 +167,7 @@ def admin_dashboard(request):
     total_products = Product.objects.count()
     out_of_stock = Product.objects.filter(stock=0).count()
     low_stock = Product.objects.filter(stock__gt=0, stock__lte=F('minimum_stock_level')).count()
+    in_stock = total_products - out_of_stock - low_stock
 
     # Get user metrics
     total_users = User.objects.count()
@@ -179,7 +181,7 @@ def admin_dashboard(request):
     today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
     
     # Get sales for the last 7 days
-    for i in range(6, -1, -1):  # Count down from 6 to 0
+    for i in range(6, -1, -1):
         date_start = today_start - timezone.timedelta(days=i)
         date_end = date_start + timezone.timedelta(days=1)
         
@@ -200,31 +202,109 @@ def admin_dashboard(request):
     ).values(
         'product__product_name'
     ).annotate(
-        total_quantity=Sum('quantity'),
-        total_sales=Sum(F('quantity') * F('unit_price_at_sale'))
+        total_quantity=Sum('quantity')
     ).order_by('-total_quantity')[:5]
 
+    product_labels = [p['product__product_name'] for p in top_products]
+    product_data = [float(p['total_quantity']) for p in top_products]
+
+    # Get category distribution
+    category_stats = Product.objects.values(
+        'category__category_name'
+    ).annotate(
+        product_count=Count('product_id')
+    ).order_by('-product_count')
+
+    category_labels = [stat['category__category_name'] or 'Uncategorized' for stat in category_stats]
+    category_data = [stat['product_count'] for stat in category_stats]
+
+    # Get stock status distribution
+    stock_status_labels = ['In Stock', 'Low Stock', 'Out of Stock']
+    stock_status_data = [in_stock, low_stock, out_of_stock]
+
+    # Get user activity data (last 7 days)
+    user_activity_labels = []
+    user_activity_data = []
+    
+    for i in range(6, -1, -1):
+        date = today_start - timezone.timedelta(days=i)
+        active_count = User.objects.filter(last_login__date=date.date()).count()
+        user_activity_data.append(active_count)
+        user_activity_labels.append(date.strftime('%b %d'))
+
+    # Get recent activities
+    recent_activities = []
+
+    # Add recent sales
+    recent_sales = Sale.objects.select_related('cashier').order_by('-transaction_date')[:5]
+    for sale in recent_sales:
+        recent_activities.append({
+            'icon': 'shopping_cart',
+            'description': f'New sale of ₱{sale.total_amount:.2f} by {sale.cashier.get_full_name()}',
+            'timestamp': timezone.localtime(sale.transaction_date).strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+    # Add recent stock adjustments
+    recent_adjustments = StockAdjustment.objects.select_related('product', 'adjusted_by').order_by('-date')[:5]
+    for adjustment in recent_adjustments:
+        recent_activities.append({
+            'icon': 'inventory',
+            'description': f'Stock adjusted for {adjustment.product.product_name} ({adjustment.quantity_change:+d}) by {adjustment.adjusted_by.get_full_name() if adjustment.adjusted_by else "System"}',
+            'timestamp': timezone.localtime(adjustment.date).strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+    # Add recent user logins
+    recent_logins = User.objects.filter(
+        last_login__isnull=False
+    ).order_by('-last_login')[:5]
+    for user in recent_logins:
+        recent_activities.append({
+            'icon': 'person',
+            'description': f'{user.get_full_name()} logged in',
+            'timestamp': timezone.localtime(user.last_login).strftime('%Y-%m-%d %H:%M:%S')
+        })
+
+    # Sort activities by timestamp and limit to 5
+    recent_activities.sort(key=lambda x: x['timestamp'], reverse=True)
+    recent_activities = recent_activities[:5]
+
+    # Convert Decimal to float for JSON serialization
+    total_sales = float(current_month_sales)
+    sales_change = float(sales_change)
+
+    # Prepare chart data
+    chart_data = {
+        'sales_labels': json.dumps(sales_labels),
+        'sales_data': json.dumps(sales_data),
+        'product_labels': json.dumps(product_labels),
+        'product_data': json.dumps(product_data),
+        'category_labels': json.dumps(category_labels),
+        'category_data': json.dumps(category_data),
+        'stock_status_labels': json.dumps(stock_status_labels),
+        'stock_status_data': json.dumps(stock_status_data),
+        'user_activity_labels': json.dumps(user_activity_labels),
+        'user_activity_data': json.dumps(user_activity_data)
+    }
+
     context = {
+        'total_sales': total_sales,
+        'sales_change': sales_change,
+        'total_transactions': current_month_transactions,
+        'transaction_change': transaction_change,
         'total_products': total_products,
         'out_of_stock': out_of_stock,
-        'low_stock': low_stock,
         'total_users': total_users,
         'active_users': active_users,
-        'current_month_sales': current_month_sales,
-        'sales_change': sales_change,
-        'current_month_transactions': current_month_transactions,
-        'transaction_change': transaction_change,
-        'sales_data': sales_data,
-        'sales_labels': sales_labels,
-        'top_products': top_products,
+        'recent_activities': recent_activities,
+        **chart_data
     }
+
     return render(request, 'admin_panel/dashboard/admin_dashboard.html', context)
 
 def admin_dashboard_data(request):
     if not request.user.role == 'admin':
         return JsonResponse({'error': 'Unauthorized'}, status=403)
 
-    # Get date ranges
     today = timezone.now()
     last_month = today - timezone.timedelta(days=30)
     two_months_ago = last_month - timezone.timedelta(days=30)
@@ -250,8 +330,9 @@ def admin_dashboard_data(request):
 
     # Get product metrics
     total_products = Product.objects.count()
-    out_of_stock = Product.objects.filter(stock_quantity=0).count()
-    low_stock = Product.objects.filter(stock_quantity__gt=0, stock_quantity__lte=10).count()
+    out_of_stock = Product.objects.filter(stock=0).count()
+    low_stock = Product.objects.filter(stock__gt=0, stock__lte=F('minimum_stock_level')).count()
+    in_stock = total_products - out_of_stock - low_stock
 
     # Get user metrics
     total_users = User.objects.count()
@@ -260,23 +341,61 @@ def admin_dashboard_data(request):
     # Get sales data for chart
     sales_data = []
     sales_labels = []
-    for i in range(7):
-        date = today - timezone.timedelta(days=i)
+    
+    # Get the start of today
+    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # Get sales for the last 7 days
+    for i in range(6, -1, -1):
+        date_start = today_start - timezone.timedelta(days=i)
+        date_end = date_start + timezone.timedelta(days=1)
+        
         daily_sales = Sale.objects.filter(
-            transaction_date__date=date.date()
-        ).aggregate(total=Sum('total_amount'))['total'] or 0
-        sales_data.insert(0, float(daily_sales))
-        sales_labels.insert(0, date.strftime('%b %d'))
+            transaction_date__gte=date_start,
+            transaction_date__lt=date_end
+        ).aggregate(
+            total=Sum('total_amount')
+        )['total'] or Decimal('0.00')
 
-    # Get top selling products
-    top_products = SaleItem.objects.values(
+        sales_data.append(float(daily_sales))
+        sales_labels.append(date_start.strftime('%b %d'))
+
+    # Get top selling products for the last 30 days
+    last_30_days = today_start - timezone.timedelta(days=30)
+    top_products = SaleItem.objects.filter(
+        sale__transaction_date__gte=last_30_days
+    ).values(
         'product__product_name'
     ).annotate(
-        total_sold=Sum('quantity')
-    ).order_by('-total_sold')[:5]
+        total_quantity=Sum('quantity')
+    ).order_by('-total_quantity')[:5]
 
     product_labels = [p['product__product_name'] for p in top_products]
-    product_data = [float(p['total_sold']) for p in top_products]
+    product_data = [float(p['total_quantity']) for p in top_products]
+
+    # Get category distribution
+    category_stats = Product.objects.values(
+        'category__category_name'
+    ).annotate(
+        product_count=Count('product_id')
+    ).order_by('-product_count')
+
+    category_labels = [stat['category__category_name'] or 'Uncategorized' for stat in category_stats]
+    category_data = [stat['product_count'] for stat in category_stats]
+
+    # Get stock status distribution
+    stock_status_labels = ['In Stock', 'Low Stock', 'Out of Stock']
+    stock_status_data = [in_stock, low_stock, out_of_stock]
+
+    # Get user activity data (last 7 days)
+    user_activity_labels = []
+    user_activity_data = []
+    
+    for i in range(6, -1, -1):
+        date = today_start - timezone.timedelta(days=i)
+        active_count = User.objects.filter(last_login__date=date.date()).count()
+        user_activity_data.append(active_count)
+        user_activity_labels.append(date.strftime('%b %d'))
 
     # Get recent activities
     recent_activities = []
@@ -287,16 +406,16 @@ def admin_dashboard_data(request):
         recent_activities.append({
             'icon': 'shopping_cart',
             'description': f'New sale of ₱{sale.total_amount:.2f} by {sale.cashier.get_full_name()}',
-            'timestamp': sale.transaction_date.strftime('%Y-%m-%d %H:%M:%S')
+            'timestamp': timezone.localtime(sale.transaction_date).strftime('%Y-%m-%d %H:%M:%S')
         })
 
     # Add recent stock adjustments
-    recent_adjustments = StockAdjustment.objects.select_related('product').order_by('-date')[:5]
+    recent_adjustments = StockAdjustment.objects.select_related('product', 'adjusted_by').order_by('-date')[:5]
     for adjustment in recent_adjustments:
         recent_activities.append({
             'icon': 'inventory',
-            'description': f'Stock adjusted for {adjustment.product.product_name} ({adjustment.quantity_change:+d})',
-            'timestamp': adjustment.date.strftime('%Y-%m-%d %H:%M:%S')
+            'description': f'Stock adjusted for {adjustment.product.product_name} ({adjustment.quantity_change:+d}) by {adjustment.adjusted_by.get_full_name() if adjustment.adjusted_by else "System"}',
+            'timestamp': timezone.localtime(adjustment.date).strftime('%Y-%m-%d %H:%M:%S')
         })
 
     # Add recent user logins
@@ -307,27 +426,36 @@ def admin_dashboard_data(request):
         recent_activities.append({
             'icon': 'person',
             'description': f'{user.get_full_name()} logged in',
-            'timestamp': user.last_login.strftime('%Y-%m-%d %H:%M:%S')
+            'timestamp': timezone.localtime(user.last_login).strftime('%Y-%m-%d %H:%M:%S')
         })
 
     # Sort activities by timestamp and limit to 5
     recent_activities.sort(key=lambda x: x['timestamp'], reverse=True)
     recent_activities = recent_activities[:5]
 
+    # Convert Decimal to float for JSON serialization
+    total_sales = float(current_month_sales)
+    sales_change = float(sales_change)
+
     return JsonResponse({
-        'total_sales': float(current_month_sales),
-        'sales_change': float(sales_change),
+        'total_sales': total_sales,
+        'sales_change': sales_change,
         'total_transactions': current_month_transactions,
-        'transaction_change': float(transaction_change),
+        'transaction_change': transaction_change,
         'total_products': total_products,
         'out_of_stock': out_of_stock,
-        'low_stock': low_stock,
         'total_users': total_users,
         'active_users': active_users,
         'sales_labels': sales_labels,
         'sales_data': sales_data,
         'product_labels': product_labels,
         'product_data': product_data,
+        'category_labels': category_labels,
+        'category_data': category_data,
+        'stock_status_labels': stock_status_labels,
+        'stock_status_data': stock_status_data,
+        'user_activity_labels': user_activity_labels,
+        'user_activity_data': user_activity_data,
         'recent_activities': recent_activities
     })
 
@@ -480,6 +608,7 @@ def add_product(request):
         price = request.POST.get('price')
         cost_price = request.POST.get('cost_price')
         product_image = request.FILES.get('product_image')
+        is_active = request.POST.get('is_active') == 'on'  # Convert checkbox value to boolean
 
         try:
             category = Category.objects.get(id=category_id)
@@ -494,7 +623,8 @@ def add_product(request):
                 minimum_stock_level=minimum_stock_level,
                 price=price,
                 cost_price=cost_price,
-                image=product_image
+                image=product_image,
+                is_active=is_active  # Add is_active field
             )
             messages.success(request, 'Product added successfully!')
             return redirect('crud:admin_products')
@@ -525,6 +655,7 @@ def edit_product(request, product_id):
                 product.sku = request.POST.get('sku')
                 product.barcode = request.POST.get('barcode')
                 product.minimum_stock_level = request.POST.get('minimum_stock_level')
+                product.is_active = request.POST.get('is_active') == 'on'  # Add is_active field handling
 
                 if request.FILES.get('product_image'):
                     if product.image:
@@ -1069,6 +1200,7 @@ def admin_add_supplier(request):
             contact_number = request.POST.get('contact_number')
             email = request.POST.get('email')
             address = request.POST.get('address')
+            is_active = request.POST.get('is_active', False) == 'on'
 
             # Create new supplier
             supplier = Supplier.objects.create(
@@ -1076,7 +1208,8 @@ def admin_add_supplier(request):
                 contact_person=contact_person,
                 contact_number=contact_number,
                 email=email,
-                address=address
+                address=address,
+                is_active=is_active
             )
 
             messages.success(request, 'Supplier added successfully.')
@@ -1098,6 +1231,7 @@ def add_supplier(request):
             contact_number = request.POST.get('contact_number')
             email = request.POST.get('email')
             address = request.POST.get('address')
+            is_active = request.POST.get('is_active', False) == 'on'
 
             # Create new supplier
             supplier = Supplier.objects.create(
@@ -1105,7 +1239,8 @@ def add_supplier(request):
                 contact_person=contact_person,
                 contact_number=contact_number,
                 email=email,
-                address=address
+                address=address,
+                is_active=is_active
             )
 
             messages.success(request, 'Supplier added successfully.')
@@ -1308,7 +1443,7 @@ def inventory_manager_add_purchase_order(request):
             total_cost = Decimal('0.00')
             
             for item in items:
-                product = Product.objects.get(id=item['product_id'])
+                product = Product.objects.get(product_id=item['product_id'])
                 quantity = Decimal(item['quantity'])
                 unit_price = Decimal(item['unit_price'])
                 subtotal = quantity * unit_price
@@ -1330,11 +1465,11 @@ def inventory_manager_add_purchase_order(request):
         except Exception as e:
             return JsonResponse({'success': False, 'error': str(e)})
     
-    suppliers = Supplier.objects.all()
+    suppliers = Supplier.objects.filter(is_active=True)
     products = Product.objects.filter(is_active=True)
     products_data = [
         {
-            'product_id': str(product.id),
+            'product_id': str(product.product_id),
             'product_name': product.product_name,
             'price': float(product.price)
         }
@@ -1353,14 +1488,14 @@ def delete_purchase_order(request, purchase_id):
         purchase_order = Purchase.objects.get(id=purchase_id)
         
         if request.method == 'POST':
-            purchase_order.items.all().delete()
-            purchase_order.delete()
-            messages.success(request, 'Purchase order deleted successfully.')
-            return redirect('crud:admin_purchase_orders')
-        
-        return render(request, 'admin_panel/purchase_orders/delete_purchase_order.html', {
-            'purchase_order': purchase_order
-        })
+                purchase_order.items.all().delete()
+                purchase_order.delete()
+                messages.success(request, 'Purchase order deleted successfully.')
+                return redirect('crud:admin_purchase_orders')
+                    
+                return render(request, 'admin_panel/purchase_orders/delete_purchase_order.html', {
+                        'purchase_order': purchase_order
+                    })
     except Purchase.DoesNotExist:
         messages.error(request, 'Purchase order not found.')
         return redirect('crud:admin_purchase_orders')
@@ -1371,7 +1506,7 @@ def stock_adjustments(request):
         return redirect('crud:user_login')
         
     adjustments = StockAdjustment.objects.select_related('product', 'adjusted_by').all().order_by('-date')
-    products = Product.objects.all()
+    products = Product.objects.filter(is_active=True)
     
     context = {
         'adjustments': adjustments,
@@ -1389,12 +1524,34 @@ def add_stock_adjustment(request):
         try:
             product_id = request.POST.get('product')
             adjustment_type = request.POST.get('adjustment_type')
-            quantity_change = int(request.POST.get('quantity_change'))
+            quantity_change = request.POST.get('quantity_change')
             reason = request.POST.get('reason')
             
-            product = Product.objects.get(product_id=product_id)
+            if not all([product_id, adjustment_type, quantity_change, reason]):
+                return JsonResponse({'error': 'All fields are required'}, status=400)
             
-            adjustment = StockAdjustment.objects.create(
+            try:
+                quantity_change = int(quantity_change)
+            except ValueError:
+                return JsonResponse({'error': 'Quantity must be a valid number'}, status=400)
+            
+            try:
+                product = Product.objects.get(product_id=product_id)
+            except Product.DoesNotExist:
+                return JsonResponse({'error': 'Product not found'}, status=404)
+            
+            # Validate adjustment type
+            valid_types = ['count', 'damage', 'return', 'other']
+            if adjustment_type not in valid_types:
+                return JsonResponse({'error': 'Invalid adjustment type'}, status=400)
+            
+            # Check if stock would go negative
+            new_stock = product.stock + quantity_change
+            if new_stock < 0:
+                return JsonResponse({'error': 'Stock cannot be negative'}, status=400)
+            
+            with transaction.atomic():
+                adjustment = StockAdjustment.objects.create(
                 product=product,
                 adjustment_type=adjustment_type,
                 quantity_change=quantity_change,
@@ -1402,18 +1559,17 @@ def add_stock_adjustment(request):
                 adjusted_by=request.user
             )
             
-            product.stock_quantity += quantity_change
-            if product.stock_quantity < 0:
-                return JsonResponse({'error': 'Stock quantity cannot be negative'}, status=400)
+                product.stock = new_stock
             product.save()
             
-            return JsonResponse({'success': True})
-        except Product.DoesNotExist:
-            return JsonResponse({'error': 'Product not found'}, status=404)
-        except ValueError as e:
-            return JsonResponse({'error': str(e)}, status=400)
+            return JsonResponse({
+                'success': True,
+                'message': 'Stock adjustment saved successfully'
+            })
         except Exception as e:
-            return JsonResponse({'error': str(e)}, status=500)
+            return JsonResponse({
+            'error': str(e) if settings.DEBUG else 'An error occurred while saving the adjustment'
+        }, status=500)
 
 def get_stock_adjustment(request, adjustment_id):
     if not request.user.role == 'inventory_manager':
@@ -1440,28 +1596,28 @@ def inventory_reports(request):
         
     total_products = Product.objects.count()
     total_stock_value = Product.objects.aggregate(
-        value=Sum(F('stock_quantity') * F('price'))
+        value=Sum(F('stock') * F('price'))
     )['value'] or 0
     
     products = Product.objects.annotate(
-        status=Case(
-            When(stock_quantity=0, then=Value('out_of_stock')),
-            When(stock_quantity__lte=F('minimum_stock_level'), then=Value('low_stock')),
-            default=Value('adequate'),
+        stock_status=Case(
+            When(stock=0, then=Value('out_of_stock')),
+            When(stock__lte=F('minimum_stock_level'), then=Value('low_stock')),
+            default=Value('in_stock'),
             output_field=CharField(),
         )
     )
     
-    adequate_stock_count = products.filter(status='adequate').count()
-    low_stock_count = products.filter(status='low_stock').count()
-    out_of_stock_count = products.filter(status='out_of_stock').count()
+    adequate_stock_count = products.filter(stock_status='in_stock').count()
+    low_stock_count = products.filter(stock_status='low_stock').count()
+    out_of_stock_count = products.filter(stock_status='out_of_stock').count()
     
     low_stock_products = products.filter(
-        Q(status='low_stock') | Q(status='out_of_stock')
+        Q(stock_status='low_stock') | Q(stock_status='out_of_stock')
     ).select_related('category')[:10]
     
     categories = Category.objects.annotate(
-        total_value=Sum(F('products__stock_quantity') * F('products__price'), default=0)
+        total_value=Sum(F('products__stock') * F('products__price'), default=0)
     ).order_by('-total_value')
     
     category_names = [cat.category_name for cat in categories]
@@ -1489,8 +1645,8 @@ def category_list(request):
         
     categories = Category.objects.annotate(
         product_count=Count('products'),
-        total_stock=Sum('products__stock_quantity'),
-        total_value=Sum(F('products__stock_quantity') * F('products__price'))
+        total_stock=Sum('products__stock'),
+        total_value=Sum(F('products__stock') * F('products__price'))
     )
     
     context = {
@@ -1622,7 +1778,7 @@ def view_purchase_order(request, purchase_id):
 @admin_required
 def update_received_order_stock(request, purchase_id):
     purchase = get_object_or_404(Purchase, id=purchase_id)
-    
+        
     if purchase.status == 'received' and not purchase.stock_updated:
         stock_updates = []  # Initialize the list to store update messages
         
@@ -1633,7 +1789,7 @@ def update_received_order_stock(request, purchase_id):
                 item.product.stock += item.quantity
                 item.product.save()
                 stock_updates.append(f"{item.product.product_name}: {old_stock} → {item.product.stock}")
-        
+            
         purchase.stock_updated = True
         purchase.save()
         
@@ -1707,14 +1863,16 @@ def inventory_add_product(request):
             category_id = request.POST.get('category')
             product = Product.objects.create(
                 product_name=request.POST.get('product_name'),
-                description=request.POST.get('description'),
+                product_description=request.POST.get('product_description'),
                 sku=request.POST.get('sku'),
+                barcode=request.POST.get('barcode'),
                 price=request.POST.get('price'),
+                cost_price=request.POST.get('cost_price'),
                 stock=request.POST.get('stock', 0),
                 minimum_stock_level=request.POST.get('minimum_stock_level'),
-                image=request.FILES.get('image'),
+                image=request.FILES.get('product_image'),
                 category=Category.objects.get(id=category_id) if category_id else None,
-                is_active='is_active' in request.POST,
+                is_active=True if 'is_active' in request.POST else False,
             )
             messages.success(request, 'Product added successfully.')
             return redirect('crud:inventory_products')
@@ -1724,7 +1882,7 @@ def inventory_add_product(request):
     context = {
         'categories': categories,
     }
-    return render(request, 'inventory_manager/product/product_form.html', context)
+    return render(request, 'inventory_manager/product/add_product.html', context)
 
 def inventory_edit_product(request, product_id):
     if request.user.role != 'inventory_manager':
@@ -1743,15 +1901,17 @@ def inventory_edit_product(request, product_id):
         try:
             category_id = request.POST.get('category')
             product.product_name = request.POST.get('product_name')
-            product.description = request.POST.get('description')
+            product.product_description = request.POST.get('product_description')
             product.sku = request.POST.get('sku')
+            product.barcode = request.POST.get('barcode')
             product.price = request.POST.get('price')
+            product.cost_price = request.POST.get('cost_price')
             product.stock = request.POST.get('stock', product.stock)
             product.minimum_stock_level = request.POST.get('minimum_stock_level')
             product.category = Category.objects.get(id=category_id) if category_id else None
             product.is_active = 'is_active' in request.POST
-            if request.FILES.get('image'):
-                product.image = request.FILES.get('image')
+            if request.FILES.get('product_image'):
+                product.image = request.FILES.get('product_image')
             product.save()
             messages.success(request, 'Product updated successfully.')
             return redirect('crud:inventory_products')
@@ -1762,7 +1922,7 @@ def inventory_edit_product(request, product_id):
         'product': product,
         'categories': categories,
     }
-    return render(request, 'inventory_manager/product/product_form.html', context)
+    return render(request, 'inventory_manager/product/edit_product.html', context)
 
 def inventory_delete_product(request, product_id):
     if not request.user.role == 'inventory_manager':
@@ -1785,19 +1945,15 @@ def inventory_delete_product(request, product_id):
     return redirect('crud:inventory_products')     
 
 def inventory_dashboard(request):
-    if not request.user.is_authenticated:
-        messages.error(request, 'Please log in to access this page.')
-        return redirect('crud:user_login')
-    
     if request.user.role != 'inventory_manager':
         messages.error(request, 'You do not have permission to access this page.')
         return redirect('crud:user_login')
     
     total_products = Product.objects.count()
     total_value = Product.objects.aggregate(
-        value=Sum(F('stock_quantity') * F('price'))
+        value=Sum(F('stock') * F('price'))
     )['value'] or 0
-    low_stock = Product.objects.filter(stock_quantity__lte=F('minimum_stock_level')).count()
+    low_stock = Product.objects.filter(stock__lte=F('minimum_stock_level')).count()
     
     top_products = Product.objects.annotate(
         sold=Sum('saleitem__quantity')
@@ -1954,22 +2110,23 @@ def export_sales(request):
         # CSV Export
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="sales_report_{date_from.strftime("%Y%m%d")}_{date_to.strftime("%Y%m%d")}.csv"'
-        
+    
         writer = csv.writer(response)
         writer.writerow(['Date', 'Transaction ID', 'Cashier', 'Items', 'Total Amount', 'Discount', 'VAT'])
-        
-        for sale in sales:
-            writer.writerow([
-                sale.transaction_date.strftime('%Y-%m-%d %H:%M:%S'),
-                sale.id,
-                sale.cashier.username if sale.cashier else 'N/A',
-                sale.items.count(),
+        writer.writerow(['Date', 'Transaction ID', 'Cashier', 'Items', 'Total Amount', 'Discount', 'VAT'])
+    
+    for sale in sales:
+        writer.writerow([
+            sale.transaction_date.strftime('%Y-%m-%d %H:%M:%S'),
+            sale.id,
+            sale.cashier.username if sale.cashier else 'N/A',
+            sale.items.count(),
                 sale.total_amount,
                 sale.discount_value,
                 sale.vat_amount
-            ])
-        
-        return response
+        ])
+    
+    return response
 
 @login_required
 def get_next_order_number(request):
@@ -2482,4 +2639,65 @@ def get_category_details(request, category_id):
         return JsonResponse({'error': 'Category not found'}, status=404)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+    
+
+
+@login_required
+def add_stock_adjustment(request):
+    context = {
+        'products': Product.objects.filter(is_active=True).order_by('product_name')
+    }
+
+    if request.method == 'POST':
+        try:
+            with transaction.atomic():
+                product = get_object_or_404(Product, product_id=request.POST.get('product'))
+                quantity_change = int(request.POST.get('quantity_change'))
+                
+                # Calculate new stock level
+                new_stock = product.stock + quantity_change
+                
+                # Validate new stock level
+                if new_stock < 0:
+                    raise ValidationError("Stock cannot be negative.")
+                
+                # Create stock adjustment record
+                adjustment = StockAdjustment.objects.create(
+                    product=product,
+                    adjustment_type=request.POST.get('adjustment_type'),
+                    quantity_change=quantity_change,
+                    reason=request.POST.get('reason'),
+                    reference_number=request.POST.get('reference_number', ''),
+                    notes=request.POST.get('notes', ''),
+                    adjusted_by=request.user
+                )
+                
+                # Update product stock
+                product.stock = new_stock
+                product.save()
+                
+                messages.success(request, 'Stock adjustment added successfully.')
+                return redirect('crud:stock_adjustments')
+
+        except ValidationError as e:
+            messages.error(request, str(e))
+        except Exception as e:
+            messages.error(request, f'Error adding stock adjustment: {str(e)}')
+    
+    return render(request, 'inventory_manager/stock_adjustments/add_stock_adjustment.html', context)
+
+def view_stock_adjustment(request, adjustment_id):
+    if not request.user.role == 'inventory_manager':
+        messages.error(request, 'You do not have permission to access this page.')
+        return redirect('crud:user_login')
+        
+    try:
+        adjustment = StockAdjustment.objects.select_related('product', 'adjusted_by').get(id=adjustment_id)
+        context = {
+            'adjustment': adjustment,
+        }
+        return render(request, 'inventory_manager/stock_adjustments/view_stock_adjustment.html', context)
+    except StockAdjustment.DoesNotExist:
+        messages.error(request, 'Stock adjustment not found.')
+        return redirect('crud:stock_adjustments')
     

@@ -7,6 +7,59 @@
     <title>{% block title %}{% endblock %} | Tindahan 404</title>
     <link rel="stylesheet" href="{% static '/css/output.css' %}">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        .page-container {
+            max-width: 1280px;
+            margin: 0 auto;
+            padding: 1.5rem;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        .add-button {
+            background-color: #00A67E;
+            color: white;
+            padding: 0.625rem 1.25rem;
+            border-radius: 0.5rem;
+            display: inline-flex;
+            align-items: center;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .add-button:hover {
+            background-color: #008F6B;
+        }
+
+        .form-label {
+            color: #374151;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+
+        .form-input {
+            width: 100%;
+            border-radius: 0.5rem;
+            border: 1px solid #D1D5DB;
+            padding: 0.5rem 0.75rem;
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus {
+            border-color: #00A67E;
+            box-shadow: 0 0 0 3px rgba(0, 166, 126, 0.1);
+            outline: none;
+        }
+    </style>
     {% block extra_css %}{% endblock %}
 </head>
 <body class="min-h-screen bg-gray-100">
@@ -39,7 +92,7 @@
                         <span class="material-icons mr-2">shopping_cart</span>Purchase Orders
                     </a>
                     <a href="{% url 'crud:supplier_list' %}" 
-                       class="flex items-center px-3 py-2 rounded-lg hover:bg-teal-700 {% if request.resolver_match.url_name == 'supplier_list' %}bg-teal-700{% endif %}">
+                       class="flex items-center px-3 py-2 rounded-lg hover:bg-teal-700 {% if request.path == '/inventory/suppliers/' %}bg-teal-700{% endif %}">
                         <span class="material-icons mr-2">local_shipping</span>Suppliers
                     </a>
                     <a href="{% url 'crud:stock_adjustments' %}" 

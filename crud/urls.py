@@ -81,11 +81,15 @@ urlpatterns = [
     path('inventory/suppliers/<int:supplier_id>/edit/', views.edit_supplier, name='edit_supplier'),
     path('inventory/suppliers/<int:supplier_id>/deactivate/', views.deactivate_supplier, name='deactivate_supplier'),
     path('inventory/suppliers/<int:supplier_id>/activate/', views.activate_supplier, name='activate_supplier'),
+    
     path('inventory/purchase-orders/', views.purchase_orders, name='purchase_orders'),
     path('inventory/purchase-orders/add/', views.inventory_manager_add_purchase_order, name='inventory_manager_add_purchase_order'),
+    
     path('inventory/stock-adjustments/', views.stock_adjustments, name='stock_adjustments'),
     path('inventory/stock-adjustments/add/', views.add_stock_adjustment, name='add_stock_adjustment'),
     path('inventory/stock-adjustments/<int:adjustment_id>/', views.get_stock_adjustment, name='get_stock_adjustment'),
+    path('inventory/stock-adjustments/<int:adjustment_id>/view/', views.view_stock_adjustment, name='view_stock_adjustment'),
+
     path('inventory/reports/', views.inventory_reports, name='inventory_reports'),
 
     #POS URLs

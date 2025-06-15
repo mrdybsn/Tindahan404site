@@ -1,14 +1,14 @@
-{% extends 'layout/base_admin.html' %}
+{% extends 'layout/base_manager.html' %}
 {% load static %}
 
-{% block title %}Add Product{% endblock %}
+{% block title %}Edit Product{% endblock %}
 
 {% block content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold text-gray-800">Add New Product</h1>
-        <a href="{% url 'crud:admin_products' %}" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex items-center">
-            <span class="material-icons mr-1">arrow_back</span>
+<div class="page-container">
+    <div class="page-header">
+        <h1 class="text-2xl font-bold text-gray-900">Edit Product</h1>
+        <a href="{% url 'crud:inventory_products' %}" class="add-button bg-gray-600 hover:bg-gray-700">
+            <span class="material-icons mr-2">arrow_back</span>
             Back to Products
         </a>
     </div>
@@ -23,7 +23,7 @@
     </div>
     {% endif %}
 
-    <div class="bg-white rounded-lg shadow-md p-6">
+    <div class="bg-white rounded-lg shadow-sm p-6">
         <form method="POST" enctype="multipart/form-data" class="space-y-6">
             {% csrf_token %}
             
@@ -32,67 +32,58 @@
                     <h2 class="text-lg font-semibold text-gray-800">Basic Information</h2>
                     
                     <div>
-                        <label for="product_name" class="block text-sm font-medium text-gray-700">Product Name</label>
+                        <label for="product_name" class="form-label">Product Name</label>
                         <input type="text" 
                                id="product_name" 
                                name="product_name" 
                                placeholder="Enter product name"
                                required 
-                               class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                               value="{{ product.product_name }}"
+                               class="form-input">
                     </div>
 
                     <div>
-                        <label for="category" class="block text-sm font-medium text-gray-700">Category</label>
+                        <label for="category" class="form-label">Category</label>
                         <select id="category" 
                                 name="category" 
                                 required 
-                                class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                                class="form-input">
                             <option value="">Select a category</option>
                             {% for category in categories %}
-                            <option value="{{ category.id }}">{{ category.category_name }}</option>
+                            <option value="{{ category.id }}" {% if product.category.id == category.id %}selected{% endif %}>
+                                {{ category.category_name }}
+                            </option>
                             {% endfor %}
                         </select>
                     </div>
 
                     <div>
-                        <label for="product_description" class="block text-sm font-medium text-gray-700">Description</label>
+                        <label for="product_description" class="form-label">Description</label>
                         <textarea id="product_description" 
                                   name="product_description" 
                                   rows="4" 
                                   placeholder="Enter product description"
-                                  class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"></textarea>
+                                  class="form-input">{{ product.description }}</textarea>
                     </div>
 
                     <div>
-                        <label for="sku" class="block text-sm font-medium text-gray-700">SKU</label>
+                        <label for="sku" class="form-label">SKU</label>
                         <input type="text" 
                                id="sku" 
                                name="sku" 
                                placeholder="Enter SKU (optional)"
-                               class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                               value="{{ product.sku }}"
+                               class="form-input">
                     </div>
 
                     <div>
-                        <label for="barcode" class="block text-sm font-medium text-gray-700">Barcode</label>
+                        <label for="barcode" class="form-label">Barcode</label>
                         <input type="text" 
                                id="barcode" 
                                name="barcode" 
                                placeholder="Enter barcode (optional)"
-                               class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
-                    </div>
-
-                    <div class="mt-4">
-                        <div class="flex items-center">
-                            <input type="checkbox" 
-                                   id="is_active" 
-                                   name="is_active" 
-                                   checked 
-                                   class="h-4 w-4 text-teal-600 focus:ring-teal-500 border-gray-300 rounded">
-                            <label for="is_active" class="ml-2 block text-sm text-gray-900">
-                                Active Product
-                            </label>
-                        </div>
-                        <p class="mt-1 text-sm text-gray-500">Uncheck this if you want to deactivate this product.</p>
+                               value="{{ product.barcode }}"
+                               class="form-input">
                     </div>
                 </div>
 
@@ -100,54 +91,58 @@
                     <h2 class="text-lg font-semibold text-gray-800">Stock and Pricing</h2>
                     
                     <div>
-                        <label for="stock" class="block text-sm font-medium text-gray-700">Stock</label>
+                        <label for="stock" class="form-label">Stock</label>
                         <input type="number" 
                                id="stock" 
                                name="stock" 
                                placeholder="0"
                                required 
                                min="0"
-                               class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                               value="{{ product.stock }}"
+                               class="form-input">
                     </div>
 
                     <div>
-                        <label for="minimum_stock_level" class="block text-sm font-medium text-gray-700">Minimum Stock Level</label>
+                        <label for="minimum_stock_level" class="form-label">Minimum Stock Level</label>
                         <input type="number" 
                                id="minimum_stock_level" 
                                name="minimum_stock_level" 
                                placeholder="0"
                                required 
                                min="0"
-                               class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                               value="{{ product.minimum_stock_level }}"
+                               class="form-input">
                     </div>
 
                     <div>
-                        <label for="price" class="block text-sm font-medium text-gray-700">Selling Price</label>
-                        <div class="relative mt-1">
+                        <label for="price" class="form-label">Selling Price</label>
+                        <div class="relative">
                             <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">₱</span>
                             <input type="number" 
                                    id="price" 
                                    name="price" 
-                                   placeholder="0.00"
+                                   placeholder="0.0"
                                    required 
                                    min="0" 
                                    step="0.01"
-                                   class="block w-full pl-7 rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                                   value="{{ product.price }}"
+                                   class="form-input pl-8">
                         </div>
                     </div>
 
                     <div>
-                        <label for="cost_price" class="block text-sm font-medium text-gray-700">Cost Price</label>
-                        <div class="relative mt-1">
+                        <label for="cost_price" class="form-label">Cost Price</label>
+                        <div class="relative">
                             <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">₱</span>
                             <input type="number" 
                                    id="cost_price" 
                                    name="cost_price" 
-                                   placeholder="0.00"
+                                   placeholder="0.0"
                                    required 
                                    min="0" 
                                    step="0.01"
-                                   class="block w-full pl-7 rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                                   value="{{ product.cost_price }}"
+                                   class="form-input pl-8">
                         </div>
                     </div>
 
@@ -155,31 +150,36 @@
                         <h2 class="text-lg font-semibold text-gray-800">Product Image</h2>
                         
                         <div>
-                            <label for="product_image" class="block text-sm font-medium text-gray-700">
+                            <label for="product_image" class="form-label">
                                 Upload Image
                             </label>
+                            {% if product.image %}
+                            <div class="mb-2">
+                                <img src="{{ product.image.url }}" alt="{{ product.product_name }}" class="h-20 w-20 object-cover rounded-lg">
+                            </div>
+                            {% endif %}
                             <input type="file" 
                                    id="product_image" 
                                    name="product_image" 
                                    accept="image/*"
                                    class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100">
-                            <p class="mt-1 text-sm text-gray-500">Optional: Add an image for the product.</p>
+                            <p class="mt-1 text-sm text-gray-500">Optional: Upload a new image to replace the current one.</p>
                         </div>
                     </div>
                 </div>
             </div>
 
             <div class="flex justify-end space-x-4 pt-6 border-t">
-                <a href="{% url 'crud:admin_products' %}" 
+                <a href="{% url 'crud:inventory_products' %}" 
                    class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
                     Cancel
                 </a>
                 <button type="submit"
-                        class="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
-                    Add Product
+                        class="add-button px-6 py-2">
+                    Save Changes
                 </button>
             </div>
         </form>
     </div>
 </div>
-{% endblock %}
+{% endblock %} 

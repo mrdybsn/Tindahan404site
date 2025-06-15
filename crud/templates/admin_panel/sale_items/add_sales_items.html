@@ -35,7 +35,7 @@
                     <option value="">Select a product</option>
                     {% for product in products %}
                         <option value="{{ product.id }}" data-price="{{ product.price }}">
-                            {{ product.product_name }} (Stock: {{ product.stock_quantity }})
+                            {{ product.product_name }} (Stock: {{ product.stock }})
                         </option>
                     {% endfor %}
                 </select>

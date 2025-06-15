@@ -41,7 +41,7 @@
                             <option value="{{ product.id }}" 
                                     data-price="{{ product.price }}"
                                     {% if product.id == sale_item.product.id %}selected{% endif %}>
-                                {{ product.product_name }} (Stock: {{ product.stock_quantity }})
+                                {{ product.product_name }} (Stock: {{ product.stock }})
                             </option>
                         {% endfor %}
                     </select>

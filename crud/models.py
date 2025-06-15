@@ -152,12 +152,12 @@ class Supplier(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    groups = models.ManyToManyField('auth.Group', related_name='custom_user_set', related_query_name='user')
-    user_permissions = models.ManyToManyField('auth.Permission', related_name='custom_user_permissions_set', blank=True, related_query_name='user')
+
     class Meta:
         verbose_name = "Supplier"
         verbose_name_plural = "Suppliers"
         ordering = ['company_name']
+
     def __str__(self):
         return self.company_name
 

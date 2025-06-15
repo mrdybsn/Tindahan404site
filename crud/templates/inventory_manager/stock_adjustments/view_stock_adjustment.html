@@ -1,0 +1,97 @@
+{% extends 'layout/base_manager.html' %}
+{% load static %}
+
+{% block title %}View Stock Adjustment{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="page-header">
+        <h1 class="text-2xl font-bold text-gray-900">View Stock Adjustment</h1>
+        <a href="{% url 'crud:stock_adjustments' %}" class="add-button bg-gray-600 hover:bg-gray-700">
+            <span class="material-icons mr-2">arrow_back</span>Back to Stock Adjustments
+        </a>
+    </div>
+
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="space-y-6">
+                <h2 class="text-lg font-semibold text-gray-800">Adjustment Details</h2>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Product</label>
+                    <div class="mt-1 text-sm text-gray-900">
+                        {{ adjustment.product.product_name }}
+                        <div class="text-xs text-gray-500">SKU: {{ adjustment.product.product_id }}</div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Adjustment Type</label>
+                    <div class="mt-1">
+                        {% if adjustment.adjustment_type == 'count' %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                            Stock Count
+                        </span>
+                        {% elif adjustment.adjustment_type == 'damage' %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                            Damage
+                        </span>
+                        {% elif adjustment.adjustment_type == 'return' %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
+                            Return
+                        </span>
+                        {% else %}
+                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">
+                            Other
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Quantity Change</label>
+                    <div class="mt-1 text-sm {% if adjustment.quantity_change > 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                        {% if adjustment.quantity_change > 0 %}+{% endif %}{{ adjustment.quantity_change }}
+                    </div>
+                </div>
+            </div>
+
+            <div class="space-y-6">
+                <h2 class="text-lg font-semibold text-gray-800">Additional Information</h2>
+                
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Reason</label>
+                    <div class="mt-1 text-sm text-gray-900">{{ adjustment.reason }}</div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Date</label>
+                    <div class="mt-1 text-sm text-gray-900">
+                        {{ adjustment.date|date:"M d, Y" }}
+                        <div class="text-xs text-gray-500">{{ adjustment.date|date:"h:i A" }}</div>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Adjusted By</label>
+                    <div class="mt-1 text-sm text-gray-900">{{ adjustment.adjusted_by.get_full_name }}</div>
+                </div>
+
+                {% if adjustment.reference_number %}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Reference Number</label>
+                    <div class="mt-1 text-sm text-gray-900">{{ adjustment.reference_number }}</div>
+                </div>
+                {% endif %}
+
+                {% if adjustment.notes %}
+                <div>
+                    <label class="block text-sm font-medium text-gray-700">Additional Notes</label>
+                    <div class="mt-1 text-sm text-gray-900">{{ adjustment.notes }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

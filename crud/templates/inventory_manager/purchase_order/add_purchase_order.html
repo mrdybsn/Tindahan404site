@@ -19,7 +19,7 @@
                     class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500">
                 <option value="">Select a supplier</option>
                 {% for supplier in suppliers %}
-                <option value="{{ supplier.id }}">{{ supplier.supplier_name }}</option>
+                <option value="{{ supplier.id }}">{{ supplier.company_name }}</option>
                 {% endfor %}
             </select>
         </div>
@@ -200,15 +200,19 @@ function addItem(item = null) {
 }
 
 function updateItem(index) {
-    let item = items[index];
-    let tr = item.element;
+    const item = items[index];
+    const tr = item.element;
+    const productSelect = tr.querySelector('select[name="products[]"]');
+    const quantityInput = tr.querySelector('input[name="quantities[]"]');
+    const priceInput = tr.querySelector('input[name="unit_prices[]"]');
+    const subtotalSpan = tr.querySelector('td:nth-child(4) span');
     
-    item.product_id = tr.querySelector('select').value;
-    item.quantity = parseInt(tr.querySelector('input[type="number"][name="quantities[]"]').value) || 0;
-    item.unit_price = parseFloat(tr.querySelector('input[type="number"][name="unit_prices[]"]').value) || 0;
+    item.product_id = productSelect.value;
+    item.quantity = parseInt(quantityInput.value) || 0;
+    item.unit_price = parseFloat(priceInput.value) || 0;
     
-    let subtotal = calculateSubtotal(item.quantity, item.unit_price);
-    tr.querySelector('td:nth-child(4) span').textContent = `₱${formatCurrency(subtotal)}`;
+    const subtotal = calculateSubtotal(item.quantity, item.unit_price);
+    subtotalSpan.textContent = `₱${formatCurrency(subtotal)}`;
     
     updateTotal();
 }
@@ -216,19 +220,10 @@ function updateItem(index) {
 function removeItem(index) {
     items[index].element.remove();
     items.splice(index, 1);
-    // Update indices for remaining items
     items.forEach((item, i) => {
-        let tr = item.element;
-        tr.querySelector('select').onchange = () => {
-            const selectedProduct = products.find(p => p.product_id === tr.querySelector('select').value);
-            if (selectedProduct) {
-                tr.querySelector('input[name="unit_prices[]"]').value = selectedProduct.price;
-            }
-            updateItem(i);
-        };
-        tr.querySelector('input[name="quantities[]"]').onchange = () => updateItem(i);
-        tr.querySelector('input[name="unit_prices[]"]').onchange = () => updateItem(i);
-        tr.querySelector('button').onclick = () => removeItem(i);
+        item.element.querySelectorAll('select, input').forEach(input => {
+            input.onchange = () => updateItem(i);
+        });
     });
     updateTotal();
 }
@@ -241,14 +236,18 @@ document.getElementById('purchaseOrderForm').onsubmit = function(e) {
         return false;
     }
     
-    let formData = new FormData(this);
-    formData.append('items', JSON.stringify(items));
+    const formData = new FormData(this);
+    formData.append('items', JSON.stringify(items.map(item => ({
+        product_id: item.product_id,
+        quantity: item.quantity,
+        unit_price: item.unit_price
+    }))));
     
-    fetch(this.action, {
+    fetch(window.location.href, {
         method: 'POST',
         body: formData,
         headers: {
-            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
         }
     })
     .then(response => response.json())
@@ -256,12 +255,12 @@ document.getElementById('purchaseOrderForm').onsubmit = function(e) {
         if (data.success) {
             window.location.href = "{% url 'crud:purchase_orders' %}";
         } else {
-            alert(data.error || 'An error occurred while creating the purchase order.');
+            alert('Error: ' + data.error);
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('An error occurred while creating the purchase order.');
+        alert('An error occurred while saving the purchase order.');
     });
     
     return false;

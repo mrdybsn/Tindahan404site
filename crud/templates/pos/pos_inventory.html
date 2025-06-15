@@ -56,8 +56,8 @@
                 </div>
                 <div class="mt-2 flex justify-between items-center">
                     <p class="text-sm font-bold text-teal-600">₱{{ product.price }}</p>
-                    <p class="text-xs {% if product.stock_quantity <= product.minimum_stock_level %}text-red-500{% else %}text-gray-600{% endif %}">
-                        Stock: {{ product.stock_quantity }}
+                    <p class="text-xs {% if product.stock <= product.minimum_stock_level %}text-red-500{% else %}text-gray-600{% endif %}">
+                        Stock: {{ product.stock }}
                     </p>
                 </div>
             </div>

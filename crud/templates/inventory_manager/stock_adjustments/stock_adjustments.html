@@ -6,10 +6,10 @@
 {% block header %}Stock Adjustments{% endblock %}
 
 {% block header_actions %}
-<button onclick="openAddModal()" class="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg flex items-center">
+<a href="{% url 'crud:add_stock_adjustment' %}" class="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg flex items-center">
     <span class="material-icons mr-2">add</span>
     New Adjustment
-</button>
+</a>
 {% endblock %}
 
 {% block content %}
@@ -102,7 +102,7 @@
                             <div class="text-sm text-gray-900">{{ adjustment.adjusted_by.get_full_name }}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <button onclick="viewAdjustment('{{ adjustment.id }}')" class="text-teal-600 hover:text-teal-900">View</button>
+                            <a href="{% url 'crud:view_stock_adjustment' adjustment.id %}" class="text-teal-600 hover:text-teal-900">View</a>
                         </td>
                     </tr>
                     {% empty %}
@@ -118,105 +118,119 @@
     </div>
 </div>
 
-<!-- Add/View Adjustment Modal -->
-<div id="adjustmentModal" class="hidden fixed z-10 inset-0 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
-    <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
-        <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-        <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
-            <form id="adjustmentForm" method="post">
-                {% csrf_token %}
-                <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                    <h3 class="text-lg leading-6 font-medium text-gray-900 mb-4" id="modalTitle">New Stock Adjustment</h3>
-                    <div class="space-y-4">
-                        <div>
-                            <label for="product" class="block text-sm font-medium text-gray-700">Product</label>
-                            <select name="product" 
-                                    id="product" 
-                                    required 
-                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500">
-                                <option value="">Select a product</option>
-                                {% for product in products %}
-                                <option value="{{ product.product_id }}">{{ product.product_name }} ({{ product.product_id }})</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div>
-                            <label for="adjustment_type" class="block text-sm font-medium text-gray-700">Adjustment Type</label>
-                            <select name="adjustment_type" 
-                                    id="adjustment_type" 
-                                    required 
-                                    class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500">
-                                <option value="count">Stock Count</option>
-                                <option value="damage">Damage</option>
-                                <option value="return">Return</option>
-                                <option value="other">Other</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label for="quantity_change" class="block text-sm font-medium text-gray-700">Quantity Change</label>
-                            <div class="mt-1 flex rounded-md shadow-sm">
-                                <span class="inline-flex items-center px-3 rounded-l-md border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm">
-                                    +/-
-                                </span>
-                                <input type="number" 
-                                       name="quantity_change" 
-                                       id="quantity_change" 
-                                       required 
-                                       class="flex-1 min-w-0 block w-full px-3 py-2 rounded-none rounded-r-md border focus:outline-none focus:ring-teal-500 focus:border-teal-500">
-                            </div>
-                            <p class="mt-1 text-sm text-gray-500">Use positive numbers for additions and negative for reductions</p>
-                        </div>
-                        <div>
-                            <label for="reason" class="block text-sm font-medium text-gray-700">Reason</label>
-                            <textarea name="reason" 
-                                      id="reason" 
-                                      required 
-                                      rows="3" 
-                                      class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500"></textarea>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
-                    <button type="submit" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-teal-500 text-base font-medium text-white hover:bg-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 sm:ml-3 sm:w-auto sm:text-sm">
-                        Save Adjustment
-                    </button>
-                    <button type="button" onclick="closeModal()" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
-                        Cancel
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
+<!-- Include the new adjustment modal template -->
+{% include 'inventory_manager/stock_adjustments/new_adjustment_modal.html' %}
 {% endblock %}
 
 {% block extra_js %}
 <script>
+// Initialize modal backdrop click handler
+document.addEventListener('DOMContentLoaded', function() {
+    initializeModal();
+    initializeFilters();
+});
+
+function initializeModal() {
+    const modal = document.getElementById('adjustmentModal');
+    if (!modal) return;
+
+    const modalContent = modal.querySelector('.inline-block');
+    if (!modalContent) return;
+    
+    // Close modal when clicking outside
+    modal.addEventListener('click', function(e) {
+        // If clicking the backdrop (not the modal content)
+        if (e.target === modal || e.target.id === 'modalBackdrop') {
+            closeModal();
+        }
+    });
+    
+    // Prevent clicks inside modal from closing it
+    modalContent.addEventListener('click', function(e) {
+        e.stopPropagation();
+    });
+
+    // Initialize form submission handler
+    const form = document.getElementById('adjustmentForm');
+    if (form) {
+        form.onsubmit = handleFormSubmit;
+    }
+}
+
+function initializeFilters() {
+    const searchInput = document.getElementById('searchInput');
+    const typeFilter = document.getElementById('typeFilter');
+    const dateFilter = document.getElementById('dateFilter');
+
+    if (searchInput) searchInput.addEventListener('input', applyFilters);
+    if (typeFilter) typeFilter.addEventListener('change', applyFilters);
+    if (dateFilter) dateFilter.addEventListener('change', applyFilters);
+}
+
 function openModal() {
-    document.getElementById('adjustmentModal').classList.remove('hidden');
+    const modal = document.getElementById('adjustmentModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        // Prevent body scrolling when modal is open
+        document.body.style.overflow = 'hidden';
+        // Enable form fields and show submit button for add mode
+        document.querySelectorAll('#adjustmentForm input, #adjustmentForm select, #adjustmentForm textarea').forEach(el => {
+            el.disabled = false;
+        });
+        document.querySelector('#adjustmentForm button[type="submit"]').style.display = '';
+    }
 }
 
 function closeModal() {
-    document.getElementById('adjustmentModal').classList.add('hidden');
-    document.getElementById('adjustmentForm').reset();
+    const modal = document.getElementById('adjustmentModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        // Restore body scrolling
+        document.body.style.overflow = '';
+        // Reset form
+        const form = document.getElementById('adjustmentForm');
+        if (form) {
+            form.reset();
+            // Re-enable all form fields
+            form.querySelectorAll('input, select, textarea').forEach(el => {
+                el.disabled = false;
+            });
+            // Show submit button
+            form.querySelector('button[type="submit"]').style.display = '';
+        }
+    }
 }
 
-function openAddModal() {
-    document.getElementById('modalTitle').textContent = 'New Stock Adjustment';
-    document.getElementById('adjustmentForm').action = "{% url 'crud:add_stock_adjustment' %}";
+function openNewAdjustmentModal() {
+    const modalTitle = document.getElementById('modalTitle');
+    const form = document.getElementById('adjustmentForm');
+    
+    if (modalTitle) modalTitle.textContent = 'New Stock Adjustment';
+    if (form) form.action = "{% url 'crud:add_stock_adjustment' %}";
+    
     openModal();
 }
 
 function viewAdjustment(adjustmentId) {
     fetch(`/inventory/stock-adjustments/${adjustmentId}/`)
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Failed to load adjustment details');
+            }
+            return response.json();
+        })
         .then(data => {
-            document.getElementById('modalTitle').textContent = 'View Stock Adjustment';
-            document.getElementById('product').value = data.product;
-            document.getElementById('adjustment_type').value = data.adjustment_type;
-            document.getElementById('quantity_change').value = data.quantity_change;
-            document.getElementById('reason').value = data.reason;
+            const modalTitle = document.getElementById('modalTitle');
+            const product = document.getElementById('product');
+            const adjustmentType = document.getElementById('adjustment_type');
+            const quantityChange = document.getElementById('quantity_change');
+            const reason = document.getElementById('reason');
+            
+            if (modalTitle) modalTitle.textContent = 'View Stock Adjustment';
+            if (product) product.value = data.product;
+            if (adjustmentType) adjustmentType.value = data.adjustment_type;
+            if (quantityChange) quantityChange.value = data.quantity_change;
+            if (reason) reason.value = data.reason;
             
             // Disable form fields for view mode
             document.querySelectorAll('#adjustmentForm input, #adjustmentForm select, #adjustmentForm textarea').forEach(el => {
@@ -224,48 +238,58 @@ function viewAdjustment(adjustmentId) {
             });
             
             // Hide submit button
-            document.querySelector('#adjustmentForm button[type="submit"]').style.display = 'none';
+            const submitButton = document.querySelector('#adjustmentForm button[type="submit"]');
+            if (submitButton) submitButton.style.display = 'none';
             
             openModal();
         })
         .catch(error => {
             console.error('Error:', error);
-            alert('Failed to load adjustment details');
+            alert(error.message);
         });
 }
 
 // Form submission handling
-document.getElementById('adjustmentForm').onsubmit = function(e) {
+function handleFormSubmit(e) {
     e.preventDefault();
+    
+    const formData = new FormData(this);
     
     fetch(this.action, {
         method: 'POST',
-        body: new FormData(this),
+        body: formData,
         headers: {
             'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
         }
     })
-    .then(response => response.json())
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(data => {
+                throw new Error(data.error || 'Failed to save adjustment');
+            });
+        }
+        return response.json();
+    })
     .then(data => {
         if (data.success) {
             window.location.reload();
         } else {
-            alert(data.error || 'Failed to save adjustment');
+            throw new Error(data.error || 'Failed to save adjustment');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Failed to save adjustment');
+        alert(error.message || 'Failed to save adjustment');
     });
     
     return false;
-};
+}
 
 // Search and filter functionality
 function applyFilters() {
-    const searchText = document.getElementById('searchInput').value.toLowerCase();
-    const typeFilter = document.getElementById('typeFilter').value;
-    const dateFilter = document.getElementById('dateFilter').value;
+    const searchText = document.getElementById('searchInput')?.value.toLowerCase() || '';
+    const typeFilter = document.getElementById('typeFilter')?.value || '';
+    const dateFilter = document.getElementById('dateFilter')?.value || '';
     
     const rows = document.querySelectorAll('tbody tr');
     
@@ -311,9 +335,5 @@ function isSameDay(date1, date2) {
            date1.getMonth() === date2.getMonth() &&
            date1.getDate() === date2.getDate();
 }
-
-document.getElementById('searchInput').addEventListener('input', applyFilters);
-document.getElementById('typeFilter').addEventListener('change', applyFilters);
-document.getElementById('dateFilter').addEventListener('change', applyFilters);
 </script>
 {% endblock %} 

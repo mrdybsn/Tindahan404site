@@ -3,8 +3,6 @@
 
 {% block title %}Products{% endblock %}
 
-{% block header %}Products{% endblock %}
-
 {% block extra_css %}
 <style>
     .modal-backdrop {
@@ -29,79 +27,166 @@
     body.modal-open {
         overflow: hidden;
     }
+
+    .page-container {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 1.5rem;
+    }
+
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .filter-section {
+        background-color: white;
+        border-radius: 0.75rem;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .table-container {
+        background-color: white;
+        border-radius: 0.75rem;
+        box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+    }
+
+    .table-header {
+        background-color: #f9fafb;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .add-button {
+        background-color: #00A67E;
+        color: white;
+        padding: 0.625rem 1.25rem;
+        border-radius: 0.5rem;
+        display: inline-flex;
+        align-items: center;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .add-button:hover {
+        background-color: #008F6B;
+    }
+
+    .filter-button {
+        background-color: #00A67E;
+        color: white;
+        padding: 0.625rem 1.25rem;
+        border-radius: 0.5rem;
+        display: inline-flex;
+        align-items: center;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .filter-button:hover {
+        background-color: #008F6B;
+    }
+
+    .form-label {
+        color: #374151;
+        font-size: 0.875rem;
+        font-weight: 500;
+        margin-bottom: 0.5rem;
+        display: block;
+    }
+
+    .form-input {
+        width: 100%;
+        border-radius: 0.5rem;
+        border: 1px solid #D1D5DB;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        line-height: 1.25rem;
+        transition: all 0.2s;
+    }
+
+    .form-input:focus {
+        border-color: #00A67E;
+        box-shadow: 0 0 0 3px rgba(0, 166, 126, 0.1);
+        outline: none;
+    }
 </style>
 {% endblock %}
 
-{% block header_actions %}
-<a href="{% url 'crud:inventory_add_product' %}" class="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg flex items-center">
+
+
+{% block content %}
+<div class="page-container">
+    <div class="page-header">
+        <h1 class="text-2xl font-bold text-gray-900">Products</h1>
+        <a href="{% url 'crud:inventory_add_product' %}" class="add-button">
     <span class="material-icons mr-2">add</span>
     Add Product
 </a>
-{% endblock %}
-
-{% block content %}
-<div class="container mx-auto px-4 py-8">
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-2xl font-bold text-gray-800">Products</h1>
-        <a href="{% url 'crud:inventory_add_product' %}" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700">
-            <span class="material-icons align-middle mr-1">add</span>
-            Add Product
-        </a>
-    </div>
-
-    <!-- Filters -->
-    <div class="bg-white rounded-lg shadow p-6 mb-6">
-        <form method="get" class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-                <label for="search" class="block text-sm font-medium text-gray-700 mb-1">Search</label>
-                <input type="text" name="search" id="search" value="{{ request.GET.search }}" placeholder="Search products..." class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
             </div>
+            
+    <!-- Filters -->
+    <div class="filter-section">
+        <form method="get" class="space-y-6">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div>
+                    <label for="search" class="form-label">Search Products</label>
+                    <input type="text" name="search" id="search" value="{{ request.GET.search }}" 
+                           placeholder="Enter product name or SKU" 
+                           class="form-input">
+                </div>
             <div>
-                <label for="category" class="block text-sm font-medium text-gray-700 mb-1">Category</label>
-                <select name="category" id="category" class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                    <label for="category" class="form-label">Category</label>
+                    <select name="category" id="category" class="form-input">
                     <option value="">All Categories</option>
                     {% for category in categories %}
-                    <option value="{{ category.id }}" {% if request.GET.category == category.id|stringformat:"s" %}selected{% endif %}>
+                        <option value="{{ category.id }}" {% if request.GET.category == category.id|stringformat:"s" %}selected{% endif %}>
                         {{ category.category_name }}
                     </option>
                     {% endfor %}
                 </select>
             </div>
             <div>
-                <label for="stock_status" class="block text-sm font-medium text-gray-700 mb-1">Stock Status</label>
-                <select name="stock_status" id="stock_status" class="w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
-                    <option value="">All Stock Levels</option>
-                    <option value="out" {% if request.GET.stock_status == 'out' %}selected{% endif %}>Out of Stock</option>
+                    <label for="stock_status" class="form-label">Stock Status</label>
+                    <select name="stock_status" id="stock_status" class="form-input">
+                        <option value="">All Stock Levels</option>
+                        <option value="out" {% if request.GET.stock_status == 'out' %}selected{% endif %}>Out of Stock</option>
                     <option value="low" {% if request.GET.stock_status == 'low' %}selected{% endif %}>Low Stock</option>
                     <option value="adequate" {% if request.GET.stock_status == 'adequate' %}selected{% endif %}>Adequate Stock</option>
                 </select>
+                </div>
             </div>
-            <div class="md:col-span-3 flex justify-end">
-                <button type="submit" class="bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700">
-                    <span class="material-icons align-middle mr-1">search</span>
-                    Filter
+            <div class="flex justify-end">
+                <button type="submit" class="filter-button">
+                    <span class="material-icons mr-2">search</span>
+                    Apply Filters
                 </button>
             </div>
         </form>
-    </div>
+</div>
 
-    <!-- Products Table -->
-    <div class="bg-white rounded-lg shadow overflow-hidden">
+<!-- Products Table -->
+    <div class="table-container">
         <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
+            <thead class="table-header">
                 <tr>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SKU</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
             </thead>
             <tbody class="bg-white divide-y divide-gray-200">
                 {% for product in products %}
-                <tr>
+                <tr class="hover:bg-gray-50">
                     <td class="px-6 py-4 whitespace-nowrap">
                         <div class="flex items-center">
                             {% if product.image %}
@@ -137,7 +222,7 @@
                         </span>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div class="flex space-x-2">
+                        <div class="flex space-x-3">
                             <a href="{% url 'crud:inventory_edit_product' product.product_id %}" class="text-blue-600 hover:text-blue-900">
                                 <span class="material-icons">edit</span>
                             </a>
@@ -145,7 +230,7 @@
                                 {% csrf_token %}
                                 <button type="submit" class="text-red-600 hover:text-red-900">
                                     <span class="material-icons">delete</span>
-                                </button>
+                        </button>
                             </form>
                         </div>
                     </td>
@@ -160,7 +245,7 @@
             </tbody>
         </table>
     </div>
-
+    
     <!-- Pagination -->
     {% if products.has_other_pages %}
     <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6 mt-4 rounded-lg shadow">
@@ -190,7 +275,7 @@
                         <span class="material-icons">chevron_left</span>
                     </a>
                     {% endif %}
-
+                    
                     {% for num in products.paginator.page_range %}
                     {% if products.number == num %}
                     <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-teal-50 text-sm font-medium text-teal-600">
@@ -202,7 +287,7 @@
                     </a>
                     {% endif %}
                     {% endfor %}
-
+                    
                     {% if products.has_next %}
                     <a href="?page={{ products.next_page_number }}" class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
                         <span class="sr-only">Next</span>

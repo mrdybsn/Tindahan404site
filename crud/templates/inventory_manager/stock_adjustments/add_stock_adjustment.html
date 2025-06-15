@@ -1,0 +1,112 @@
+{% extends 'layout/base_manager.html' %}
+{% load static %}
+
+{% block title %}Add Stock Adjustment{% endblock %}
+
+{% block content %}
+<div class="page-container">
+    <div class="page-header">
+        <h1 class="text-2xl font-bold text-gray-900">Add Stock Adjustment</h1>
+        <a href="{% url 'crud:stock_adjustments' %}" class="add-button bg-gray-600 hover:bg-gray-700"><span class="material-icons mr-2">arrow_back</span>Back to Stock Adjustments</a>
+    </div>
+
+    {% if messages %}
+    <div class="mb-6">
+        {% for message in messages %}
+        <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-red-100 text-red-700{% elif message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <form method="POST" class="space-y-6">
+            {% csrf_token %}
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="space-y-6">
+                    <h2 class="text-lg font-semibold text-gray-800">Adjustment Details</h2>
+                    
+                    <div>
+                        <label for="product" class="form-label">Product</label>
+                        <select name="product" 
+                                id="product" 
+                                required 
+                                class="form-input">
+                            <option value="">Select a product</option>
+                            {% for product in products %}
+                            <option value="{{ product.product_id }}">{{ product.product_name }} ({{ product.product_id }})</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="adjustment_type" class="form-label">Adjustment Type</label>
+                        <select name="adjustment_type" 
+                                id="adjustment_type" 
+                                required 
+                                class="form-input">
+                            <option value="count">Stock Count</option>
+                            <option value="damage">Damage</option>
+                            <option value="return">Return</option>
+                            <option value="other">Other</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="quantity_change" class="form-label">Quantity Change</label>
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">+/-</span>
+                            <input type="number" 
+                                   id="quantity_change" 
+                                   name="quantity_change" 
+                                   required 
+                                   class="form-input pl-10">
+                        </div>
+                        <p class="mt-1 text-sm text-gray-500">Use positive numbers for additions and negative for reductions</p>
+                    </div>
+                </div>
+
+                <div class="space-y-6">
+                    <h2 class="text-lg font-semibold text-gray-800">Additional Information</h2>
+                    
+                    <div>
+                        <label for="reason" class="form-label">Reason</label>
+                        <textarea name="reason" 
+                                  id="reason" 
+                                  required 
+                                  rows="4" 
+                                  placeholder="Enter reason for adjustment"
+                                  class="form-input"></textarea>
+                    </div>
+
+                    <div>
+                        <label for="reference_number" class="form-label">Reference Number</label>
+                        <input type="text" 
+                               id="reference_number" 
+                               name="reference_number" 
+                               placeholder="Enter reference number (optional)"
+                               class="form-input">
+                        <p class="mt-1 text-sm text-gray-500">Optional: Add a reference number for tracking purposes</p>
+                    </div>
+
+                    <div>
+                        <label for="notes" class="form-label">Additional Notes</label>
+                        <textarea name="notes" 
+                                  id="notes" 
+                                  rows="3" 
+                                  placeholder="Enter any additional notes (optional)"
+                                  class="form-input"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-4 pt-6 border-t">
+                <a href="{% url 'crud:stock_adjustments' %}" class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">Cancel</a>
+                <button type="submit" class="add-button px-6 py-2">Save Adjustment</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
