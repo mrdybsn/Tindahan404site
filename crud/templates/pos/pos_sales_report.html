@@ -21,8 +21,11 @@
             <button onclick="generateReport()" class="bg-teal-500 text-white px-4 py-2 rounded-lg hover:bg-teal-600">
                 View Report
             </button>
-            <button onclick="exportReport()" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+            <button onclick="exportReport('csv')" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
                 Export CSV
+            </button>
+            <button onclick="exportReport('pdf')" class="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600">
+                Export PDF
             </button>
         </div>
     </div>
@@ -133,103 +136,91 @@
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Set default dates if not set
-    const today = new Date();
-    const sevenDaysAgo = new Date(today);
-    sevenDaysAgo.setDate(today.getDate() - 7);
-    
-    document.getElementById('dateFrom').value = sevenDaysAgo.toISOString().split('T')[0];
-    document.getElementById('dateTo').value = today.toISOString().split('T')[0];
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set default dates if not set
+        const today = new Date();
+        const sevenDaysAgo = new Date(today);
+        sevenDaysAgo.setDate(today.getDate() - 7);
+        
+        document.getElementById('dateFrom').value = sevenDaysAgo.toISOString().split('T')[0];
+        document.getElementById('dateTo').value = today.toISOString().split('T')[0];
 
-    // Daily Sales Chart
-    const dailySalesCtx = document.getElementById('dailySalesChart').getContext('2d');
-    new Chart(dailySalesCtx, {
-        type: 'line',
-        data: {
-            labels: {{ daily_labels|safe }},
-            datasets: [{
-                label: 'Daily Sales',
-                data: {{ daily_sales|safe }},
-                borderColor: 'rgb(13, 148, 136)',
-                tension: 0.1,
-                fill: false
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'top',
-                }
+        // Daily Sales Chart
+        const dailySalesCtx = document.getElementById('dailySalesChart').getContext('2d');
+        new Chart(dailySalesCtx, {
+            type: 'line',
+            data: {
+                labels: {{ daily_labels|safe }},
+                datasets: [{
+                    label: 'Daily Sales',
+                    data: {{ daily_sales|safe }},
+                    borderColor: 'rgb(13, 148, 136)',
+                    tension: 0.1,
+                    fill: false
+                }]
             },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return '₱' + value;
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '₱' + value;
+                            }
                         }
                     }
                 }
             }
-        }
-    });
+        });
 
-    // Top Products Chart
-    const topProductsCtx = document.getElementById('topProductsChart').getContext('2d');
-    new Chart(topProductsCtx, {
-        type: 'bar',
-        data: {
-            labels: {{ top_products_labels|safe }},
-            datasets: [{
-                label: 'Units Sold',
-                data: {{ top_products_data|safe }},
-                backgroundColor: 'rgba(13, 148, 136, 0.5)',
-                borderColor: 'rgb(13, 148, 136)',
-                borderWidth: 1
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: {
-                    position: 'top',
-                }
+        // Top Products Chart
+        const topProductsCtx = document.getElementById('topProductsChart').getContext('2d');
+        new Chart(topProductsCtx, {
+            type: 'bar',
+            data: {
+                labels: {{ top_products_labels|safe }},
+                datasets: [{
+                    label: 'Units Sold',
+                    data: {{ top_products_data|safe }},
+                    backgroundColor: 'rgba(13, 148, 136, 0.5)',
+                    borderColor: 'rgb(13, 148, 136)',
+                    borderWidth: 1
+                }]
             },
-            scales: {
-                y: {
-                    beginAtZero: true
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
                 }
             }
-        }
+        });
     });
-});
 
-function generateReport() {
-    const dateFrom = document.getElementById('dateFrom').value;
-    const dateTo = document.getElementById('dateTo').value;
-
-    if (!dateFrom || !dateTo) {
-        alert('Please select both start and end dates');
-        return;
+    function generateReport() {
+        const dateFrom = document.getElementById('dateFrom').value;
+        const dateTo = document.getElementById('dateTo').value;
+        window.location.href = `?date_from=${dateFrom}&date_to=${dateTo}`;
     }
 
-    window.location.href = `?date_from=${dateFrom}&date_to=${dateTo}`;
-}
-
-function exportReport() {
-    const dateFrom = document.getElementById('dateFrom').value;
-    const dateTo = document.getElementById('dateTo').value;
-
-    if (!dateFrom || !dateTo) {
-        alert('Please select both start and end dates');
-        return;
+    function exportReport(type) {
+        const dateFrom = document.getElementById('dateFrom').value;
+        const dateTo = document.getElementById('dateTo').value;
+        window.location.href = `{% url 'crud:export_sales' %}?date_from=${dateFrom}&date_to=${dateTo}&type=${type}`;
     }
-
-    window.location.href = `?date_from=${dateFrom}&date_to=${dateTo}&export=csv`;
-}
 </script>
 {% endblock %} 

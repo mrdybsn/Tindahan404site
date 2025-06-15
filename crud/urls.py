@@ -92,6 +92,7 @@ urlpatterns = [
     path('pos/dashboard/', views.pos_dashboard, name='pos_dashboard'),
     path('pos/analytics/', views.analytics, name='analytics'),
     path('pos/sales-report/', views.pos_sales_report, name='pos_sales_report'),
+    path('pos/sales-report/export/', views.export_sales, name='export_sales'),
     path('pos/view-inventory/', views.view_inventory, name='view_inventory'),
     path('pos/receipts/', views.pos_receipts, name='pos_receipts'),
     path('pos/get-product/<str:product_id>/', views.get_product_details, name='get_product_details'),

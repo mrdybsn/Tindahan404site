@@ -453,7 +453,7 @@ def admin_products(request):
     products_list = products_list.order_by('product_name')
     
     # Pagination
-    paginator = Paginator(products_list, 10)
+    paginator = Paginator(products_list, 10) 
     page_number = request.GET.get('page')
     products = paginator.get_page(page_number)
     
@@ -867,7 +867,7 @@ def admin_add_purchase_order(request):
                         quantity=quantity,
                         unit_cost_at_purchase=unit_cost,
                         subtotal_cost=subtotal
-                    )
+            )
 
             messages.success(request, f'Purchase order #{purchase.id} was created successfully.')
 
@@ -1353,9 +1353,7 @@ def delete_purchase_order(request, purchase_id):
         purchase_order = Purchase.objects.get(id=purchase_id)
         
         if request.method == 'POST':
-            # Delete all associated purchase items first
             purchase_order.items.all().delete()
-            # Then delete the purchase order
             purchase_order.delete()
             messages.success(request, 'Purchase order deleted successfully.')
             return redirect('crud:admin_purchase_orders')
@@ -1623,29 +1621,27 @@ def view_purchase_order(request, purchase_id):
 @login_required
 @admin_required
 def update_received_order_stock(request, purchase_id):
-    try:
-        purchase = Purchase.objects.get(id=purchase_id)
+    purchase = get_object_or_404(Purchase, id=purchase_id)
+    
+    if purchase.status == 'received' and not purchase.stock_updated:
+        stock_updates = []  # Initialize the list to store update messages
         
-        if purchase.status == 'received' and not purchase.stock_updated:
-            # Update each product's stock
-            for item in purchase.items.all():
-                product = item.product
-                old_stock = product.stock
-                product.stock += item.quantity
-                product.save()
-            
-            purchase.stock_updated = True
-            purchase.save()
-        else:
-            if purchase.stock_updated:
-                messages.info(request, 'Stock has already been updated for this purchase order.')
-            else:
-                messages.error(request, 'Can only update stock for received purchase orders.')
+        # Update stock for each item
+        for item in purchase.items.all():
+            if item.product:
+                old_stock = item.product.stock
+                item.product.stock += item.quantity
+                item.product.save()
+                stock_updates.append(f"{item.product.product_name}: {old_stock} → {item.product.stock}")
         
-        return redirect('crud:view_purchase_order', purchase_id=purchase_id)
-    except Purchase.DoesNotExist:
-        messages.error(request, 'Purchase order not found.')
-        return redirect('crud:admin_purchase_orders')
+        purchase.stock_updated = True
+        purchase.save()
+        
+        if stock_updates:
+            message = "Stock updates completed:\n" + "\n".join(stock_updates)
+            messages.success(request, message)
+    
+    return redirect('crud:view_purchase_order', purchase_id=purchase_id)
 
 def cancel_purchase_order(request, purchase_id):
     purchase_order = get_object_or_404(Purchase, pk=purchase_id)
@@ -1903,6 +1899,7 @@ def sales_report(request):
 def export_sales(request):
     date_from = request.GET.get('date_from', '')
     date_to = request.GET.get('date_to', '')
+    export_type = request.GET.get('type', 'csv')  # Default to CSV if not specified
     
     try:
         date_from = datetime.strptime(date_from, '%Y-%m-%d') if date_from else datetime.now() - timedelta(days=7)
@@ -1914,25 +1911,65 @@ def export_sales(request):
     sales = Sale.objects.filter(
         transaction_date__range=[date_from, date_to],
         cashier=request.user if request.user.role == 'cashier' else None
-    ).select_related('cashier')
-    
-    response = HttpResponse(content_type='text/csv')
-    response['Content-Disposition'] = f'attachment; filename="sales_report_{date_from.strftime("%Y%m%d")}_{date_to.strftime("%Y%m%d")}.csv"'
-    
-    writer = csv.writer(response)
-    writer.writerow(['Date', 'Transaction ID', 'Cashier', 'Items', 'Payment Method', 'Total Amount'])
-    
-    for sale in sales:
-        writer.writerow([
-            sale.transaction_date.strftime('%Y-%m-%d %H:%M:%S'),
-            sale.id,
-            sale.cashier.username if sale.cashier else 'N/A',
-            sale.items.count(),
-            sale.get_payment_method_display(),
-            sale.total_amount
-        ])
-    
-    return response
+    ).select_related('cashier').prefetch_related('items')
+
+    if export_type == 'pdf':
+        from django.template.loader import get_template
+        from xhtml2pdf import pisa
+        from django.http import HttpResponse
+        from io import BytesIO
+
+        # Calculate summary data
+        total_sales = sum(sale.total_amount for sale in sales)
+        total_transactions = len(sales)
+        avg_transaction = total_sales / total_transactions if total_transactions > 0 else 0
+
+        # Prepare template context
+        context = {
+            'sales': sales,
+            'date_from': date_from,
+            'date_to': date_to,
+            'current_datetime': timezone.now(),
+            'total_sales': total_sales,
+            'total_transactions': total_transactions,
+            'avg_transaction': avg_transaction,
+        }
+
+        # Render template
+        template = get_template('pos/sales_report_pdf.html')
+        html = template.render(context)
+
+        # Create PDF
+        response = HttpResponse(content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="sales_report_{date_from.strftime("%Y%m%d")}_{date_to.strftime("%Y%m%d")}.pdf"'
+
+        # Generate PDF
+        pdf = pisa.CreatePDF(html, dest=response)
+        
+        if pdf.err:
+            return HttpResponse('Error generating PDF', status=500)
+        
+        return response
+    else:
+        # CSV Export
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="sales_report_{date_from.strftime("%Y%m%d")}_{date_to.strftime("%Y%m%d")}.csv"'
+        
+        writer = csv.writer(response)
+        writer.writerow(['Date', 'Transaction ID', 'Cashier', 'Items', 'Total Amount', 'Discount', 'VAT'])
+        
+        for sale in sales:
+            writer.writerow([
+                sale.transaction_date.strftime('%Y-%m-%d %H:%M:%S'),
+                sale.id,
+                sale.cashier.username if sale.cashier else 'N/A',
+                sale.items.count(),
+                sale.total_amount,
+                sale.discount_value,
+                sale.vat_amount
+            ])
+        
+        return response
 
 @login_required
 def get_next_order_number(request):
@@ -2262,7 +2299,7 @@ def get_product_details(request, product_id):
                 'name': product.product_name,
                 'category': product.category.category_name,
                 'price': float(product.price),
-                'stock': product.stock_quantity,
+                'stock': product.stock,
                 'sku': product.sku,
                 'description': product.description,
                 'is_active': product.is_active
@@ -2318,7 +2355,7 @@ def save_sale(request):
                 subtotal += item_subtotal
                 
                 # Check stock
-                if product.stock_quantity < quantity:
+                if product.stock < quantity:
                     raise ValidationError(f'Insufficient stock for {product.product_name}')
                 
                 # Store product and quantity for later update
@@ -2367,7 +2404,7 @@ def save_sale(request):
                 
                 # Update product stocks
                 for product, quantity in products_to_update:
-                    product.stock_quantity -= quantity
+                    product.stock -= quantity
                     product.save()
                 
                 return JsonResponse({'success': True, 'sale_id': sale.id})
