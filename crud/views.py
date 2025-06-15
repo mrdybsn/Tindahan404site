@@ -20,8 +20,18 @@ from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
+from functools import wraps
 
 # Create your views here.
+
+def admin_required(view_func):
+    @wraps(view_func)
+    def _wrapped_view(request, *args, **kwargs):
+        if not request.user.is_authenticated or request.user.role != 'admin':
+            messages.error(request, 'You do not have permission to access this page.')
+            return redirect('crud:user_login')
+        return view_func(request, *args, **kwargs)
+    return _wrapped_view
 
 def landing_page(request):
     return render(request, 'layout/landing_page.html')
@@ -154,8 +164,8 @@ def admin_dashboard(request):
 
     # Get product metrics
     total_products = Product.objects.count()
-    out_of_stock = Product.objects.filter(stock_quantity=0).count()
-    low_stock = Product.objects.filter(stock_quantity__gt=0, stock_quantity__lte=10).count()
+    out_of_stock = Product.objects.filter(stock=0).count()
+    low_stock = Product.objects.filter(stock__gt=0, stock__lte=F('minimum_stock_level')).count()
 
     # Get user metrics
     total_users = User.objects.count()
@@ -190,71 +200,24 @@ def admin_dashboard(request):
     ).values(
         'product__product_name'
     ).annotate(
-        total_sold=Sum('quantity')
-    ).filter(
-        product__product_name__isnull=False  # Exclude products that might have been deleted
-    ).order_by('-total_sold')[:5]
-
-    # If no products have been sold, get the 5 most recent products
-    if not top_products:
-        top_products = Product.objects.filter(
-            is_active=True
-    ).values(
-            'product_name'
-    ).annotate(
-            total_sold=Value(0, output_field=IntegerField())
-        ).order_by('-created_at')[:5]
-
-    product_labels = [p['product__product_name'] if 'product__product_name' in p else p['product_name'] for p in top_products]
-    product_data = [float(p['total_sold']) for p in top_products]
-
-    # Ensure we have at least one product for the chart
-    if not product_labels:
-        product_labels = ['No Products']
-        product_data = [0]
-
-    # Get recent activities
-    recent_activities = []
-
-    # Add recent sales
-    recent_sales = Sale.objects.select_related('cashier').order_by('-transaction_date')[:5]
-    for sale in recent_sales:
-        recent_activities.append({
-            'icon': 'shopping_cart',
-            'description': f'New sale of ₱{sale.total_amount:.2f}',
-            'timestamp': sale.transaction_date
-        })
-
-    # Add recent stock adjustments
-    recent_adjustments = StockAdjustment.objects.select_related('product').order_by('-date')[:5]
-    for adjustment in recent_adjustments:
-        recent_activities.append({
-            'icon': 'inventory',
-            'description': f'Stock adjusted for {adjustment.product.product_name}',
-            'timestamp': adjustment.date
-        })
-
-    # Sort activities by timestamp
-    recent_activities.sort(key=lambda x: x['timestamp'], reverse=True)
-    recent_activities = recent_activities[:5]
+        total_quantity=Sum('quantity'),
+        total_sales=Sum(F('quantity') * F('unit_price_at_sale'))
+    ).order_by('-total_quantity')[:5]
 
     context = {
-        'total_sales': current_month_sales,
-        'sales_change': sales_change,
-        'total_transactions': current_month_transactions,
-        'transaction_change': transaction_change,
         'total_products': total_products,
         'out_of_stock': out_of_stock,
         'low_stock': low_stock,
         'total_users': total_users,
         'active_users': active_users,
-        'sales_labels': json.dumps(sales_labels, default=str),
-        'sales_data': json.dumps([float(x) for x in sales_data], default=str),
-        'product_labels': json.dumps(product_labels, default=str),
-        'product_data': json.dumps([float(x) for x in product_data], default=str),
-        'recent_activities': recent_activities
+        'current_month_sales': current_month_sales,
+        'sales_change': sales_change,
+        'current_month_transactions': current_month_transactions,
+        'transaction_change': transaction_change,
+        'sales_data': sales_data,
+        'sales_labels': sales_labels,
+        'top_products': top_products,
     }
-
     return render(request, 'admin_panel/dashboard/admin_dashboard.html', context)
 
 def admin_dashboard_data(request):
@@ -468,13 +431,40 @@ def delete_user(request, user_id):
 #--Product Management--#
 
 def admin_products(request):
-    products_list = Product.objects.select_related('category').all().order_by('product_name')
-    paginator = Paginator(products_list, 10) 
+    from django.db.models import Q
+    
+    # Start with all products
+    products_list = Product.objects.select_related('category').all()
+    
+    # Handle search
+    search_query = request.GET.get('search', '').strip()
+    if search_query:
+        products_list = products_list.filter(
+            Q(product_name__icontains=search_query) |
+            Q(sku__icontains=search_query)
+        )
+    
+    # Handle category filter
+    category_id = request.GET.get('category', '').strip()
+    if category_id:
+        products_list = products_list.filter(category_id=category_id)
+    
+    # Order by product name
+    products_list = products_list.order_by('product_name')
+    
+    # Pagination
+    paginator = Paginator(products_list, 10)
     page_number = request.GET.get('page')
     products = paginator.get_page(page_number)
     
+    # Get all categories for the filter dropdown
+    categories = Category.objects.all().order_by('category_name')
+    
     context = {
-        'products': products
+        'products': products,
+        'categories': categories,
+        'search_query': search_query,
+        'selected_category': category_id
     }
     return render(request, 'admin_panel/products/admin_products.html', context)
 
@@ -485,7 +475,7 @@ def add_product(request):
         product_description = request.POST.get('product_description')
         sku = request.POST.get('sku')
         barcode = request.POST.get('barcode')
-        stock_quantity = request.POST.get('stock_quantity')
+        stock = request.POST.get('stock', 0)  # Get stock from form
         minimum_stock_level = request.POST.get('minimum_stock_level')
         price = request.POST.get('price')
         cost_price = request.POST.get('cost_price')
@@ -500,7 +490,7 @@ def add_product(request):
                 product_description=product_description,
                 sku=sku,
                 barcode=barcode,
-                stock_quantity=stock_quantity,
+                stock=stock,  # Use stock field
                 minimum_stock_level=minimum_stock_level,
                 price=price,
                 cost_price=cost_price,
@@ -518,9 +508,12 @@ def add_product(request):
     return render(request, 'admin_panel/products/add_product.html', context)
 
 def edit_product(request, product_id):
+    print(f"Editing product with ID: {product_id}")  # Debug line
     try:
         product = get_object_or_404(Product, product_id=product_id)
+        print(f"Found product: {product.product_name}, ID: {product.product_id}")  # Debug line
         categories = Category.objects.all()
+        
         if request.method == 'POST':
             try:
                 product.product_name = request.POST.get('product_name')
@@ -528,7 +521,7 @@ def edit_product(request, product_id):
                 product.category_id = request.POST.get('category')
                 product.price = request.POST.get('price')
                 product.cost_price = request.POST.get('cost_price')
-                product.stock_quantity = request.POST.get('stock_quantity')
+                product.stock = request.POST.get('stock', product.stock)  # Updated to use stock instead of stock_quantity
                 product.sku = request.POST.get('sku')
                 product.barcode = request.POST.get('barcode')
                 product.minimum_stock_level = request.POST.get('minimum_stock_level')
@@ -719,7 +712,7 @@ def edit_sale(request, sale_id):
         except Exception as e:
             messages.error(request, f'Error updating sale: {str(e)}')
 
-    return render(request, 'admin/sales/edit_sale.html', {
+    return render(request, 'admin_panel/sales/edit_sales.html', {
         'sale': sale,
         'users': User.objects.filter(role='cashier')
     })
@@ -836,20 +829,45 @@ def admin_purchase_orders(request):
     return render(request, 'admin_panel/purchase_orders/admin_purchase_orders.html', context)
 
 def admin_add_purchase_order(request):
-    from .models import Supplier, User
+    from .models import Supplier, User, Product, PurchaseItem
+    from decimal import Decimal
+    
     if request.method == 'POST':
         try:
             supplier_id = request.POST.get('supplier')
-            total_cost = request.POST.get('total_cost')
             received_by_id = request.POST.get('received_by')
             status = request.POST.get('status')
+            expected_delivery = request.POST.get('expected_delivery')
+            total_cost = Decimal(request.POST.get('total_cost', '0'))
 
+            # Create the purchase order
             purchase = Purchase.objects.create(
                 supplier_id=supplier_id,
                 total_cost=total_cost,
                 received_by_id=received_by_id,
-                status=status
+                status=status,
+                expected_delivery=expected_delivery if expected_delivery else None
             )
+
+            # Get the product items data
+            products = request.POST.getlist('products[]')
+            quantities = request.POST.getlist('quantities[]')
+            unit_costs = request.POST.getlist('unit_costs[]')
+
+            # Create purchase items
+            for i in range(len(products)):
+                if products[i]:  # Only create if product is selected
+                    quantity = Decimal(quantities[i])
+                    unit_cost = Decimal(unit_costs[i])
+                    subtotal = quantity * unit_cost
+                    
+                    PurchaseItem.objects.create(
+                        purchase=purchase,
+                        product_id=products[i],
+                        quantity=quantity,
+                        unit_cost_at_purchase=unit_cost,
+                        subtotal_cost=subtotal
+                    )
 
             messages.success(request, f'Purchase order #{purchase.id} was created successfully.')
 
@@ -861,16 +879,20 @@ def admin_add_purchase_order(request):
             messages.error(request, f'Error creating purchase order: {str(e)}')
             return render(request, 'admin_panel/purchase_orders/add_purchase_order.html', {
                 'suppliers': Supplier.objects.all(),
-                'users': User.objects.all()
+                'users': User.objects.all(),
+                'products': Product.objects.filter(is_active=True)
             })
 
     return render(request, 'admin_panel/purchase_orders/add_purchase_order.html', {
         'suppliers': Supplier.objects.all(),
-        'users': User.objects.all()
+        'users': User.objects.all(),
+        'products': Product.objects.filter(is_active=True)
     })
 
 def edit_purchase_orders(request, purchase_id):
-    from .models import Supplier, User
+    from .models import Supplier, User, Product, PurchaseItem
+    from decimal import Decimal
+    
     try:
         purchase = Purchase.objects.get(pk=purchase_id)
     except Purchase.DoesNotExist:
@@ -879,12 +901,43 @@ def edit_purchase_orders(request, purchase_id):
 
     if request.method == 'POST':
         try:
-            purchase.supplier_id = request.POST.get('supplier')
-            purchase.total_cost = request.POST.get('total_cost')
-            purchase.received_by_id = request.POST.get('received_by')
-            purchase.status = request.POST.get('status')
+            supplier_id = request.POST.get('supplier')
+            received_by_id = request.POST.get('received_by')
+            status = request.POST.get('status')
+            expected_delivery = request.POST.get('expected_delivery')
+            total_cost = Decimal(request.POST.get('total_cost', '0'))
 
+            # Update purchase order
+            purchase.supplier_id = supplier_id
+            purchase.received_by_id = received_by_id
+            purchase.status = status
+            purchase.expected_delivery = expected_delivery if expected_delivery else None
+            purchase.total_cost = total_cost
             purchase.save()
+
+            # Get the product items data
+            products = request.POST.getlist('products[]')
+            quantities = request.POST.getlist('quantities[]')
+            unit_costs = request.POST.getlist('unit_costs[]')
+
+            # Delete existing items
+            purchase.items.all().delete()
+
+            # Create new purchase items
+            for i in range(len(products)):
+                if products[i]:  # Only create if product is selected
+                    quantity = Decimal(quantities[i])
+                    unit_cost = Decimal(unit_costs[i])
+                    subtotal = quantity * unit_cost
+                    
+                    PurchaseItem.objects.create(
+                        purchase=purchase,
+                        product_id=products[i],
+                        quantity=quantity,
+                        unit_cost_at_purchase=unit_cost,
+                        subtotal_cost=subtotal
+                    )
+
             messages.success(request, f'Purchase order #{purchase.id} was updated successfully.')
             return redirect('crud:admin_purchase_orders')
 
@@ -894,21 +947,22 @@ def edit_purchase_orders(request, purchase_id):
     return render(request, 'admin_panel/purchase_orders/edit_purchase_orders.html', {
         'purchase': purchase,
         'suppliers': Supplier.objects.all(),
-        'users': User.objects.all()
+        'users': User.objects.all(),
+        'products': Product.objects.filter(is_active=True)
     })
 
-def cancel_purchase_order(request, pk):
-    purchase_order = get_object_or_404(Purchase, pk=pk)
+def cancel_purchase_order(request, purchase_id):
+    purchase_order = get_object_or_404(Purchase, pk=purchase_id)
     if request.method == 'POST':
         purchase_order.status = 'cancelled'
         purchase_order.save()
-        messages.info(request, f"Purchase Order #{pk} has been cancelled.")
+        messages.info(request, f"Purchase Order #{purchase_id} has been cancelled.")
         return redirect('crud:admin_purchase_orders')
     
     context = {
         'purchase_order': purchase_order
     }
-    return render(request, 'admin_panel/purchase_orders/cancel_purchase_orders.html', context)
+    return render(request, 'admin_panel/purchase_orders/cancel_purchase_order.html', context)
 
 #--Purchase Items--#
 def admin_purchase_items(request):
@@ -953,35 +1007,39 @@ def add_purchase_item(request):
     })
 
 def edit_purchase_item(request, purchase_item_id):
-    from .models import Purchase, Product
     try:
-        purchase_item = PurchaseItem.objects.get(pk=purchase_item_id)
-    except PurchaseItem.DoesNotExist:
-        messages.error(request, 'Purchase item not found.')
-        return redirect('crud:admin_purchase_items')
-
-    if request.method == 'POST':
+        from .models import Purchase, Product
         try:
-            # Get form data
-            purchase_item.purchase_id = request.POST.get('purchase')
-            purchase_item.product_id = request.POST.get('product')
-            purchase_item.quantity = request.POST.get('quantity')
-            purchase_item.unit_cost_at_purchase = request.POST.get('unit_cost')
-            purchase_item.received_quantity = request.POST.get('received_quantity')
-            purchase_item.subtotal_cost = float(purchase_item.quantity) * float(purchase_item.unit_cost_at_purchase)
-
-            purchase_item.save()
-            messages.success(request, 'Purchase item was updated successfully.')
+            purchase_item = PurchaseItem.objects.get(pk=purchase_item_id)
+        except PurchaseItem.DoesNotExist:
+            messages.error(request, 'Purchase item not found.')
             return redirect('crud:admin_purchase_items')
 
-        except Exception as e:
-            messages.error(request, f'Error updating purchase item: {str(e)}')
+        if request.method == 'POST':
+            try:
+                # Get form data
+                purchase_item.purchase_id = request.POST.get('purchase')
+                purchase_item.product_id = request.POST.get('product')
+                purchase_item.quantity = request.POST.get('quantity')
+                purchase_item.unit_cost_at_purchase = request.POST.get('unit_cost')
+                purchase_item.received_quantity = request.POST.get('received_quantity')
+                purchase_item.subtotal_cost = float(purchase_item.quantity) * float(purchase_item.unit_cost_at_purchase)
 
-    return render(request, 'admin/purchase_items/edit_purchase_item.html', {
-        'purchase_item': purchase_item,
-        'purchases': Purchase.objects.all(),
-        'products': Product.objects.filter(is_active=True)
-    })
+                purchase_item.save()
+                messages.success(request, 'Purchase item was updated successfully.')
+                return redirect('crud:admin_purchase_items')
+
+            except Exception as e:
+                messages.error(request, f'Error updating purchase item: {str(e)}')
+
+        return render(request, 'admin/purchase_items/edit_purchase_item.html', {
+            'purchase_item': purchase_item,
+            'purchases': Purchase.objects.all(),
+            'products': Product.objects.filter(is_active=True)
+        })
+    except Exception as e:
+        messages.error(request, f'Error: {str(e)}')
+        return redirect('crud:admin_purchase_items')
 
 def delete_purchase_item(request, purchase_item_id):
     try:
@@ -1288,84 +1346,26 @@ def inventory_manager_add_purchase_order(request):
     }
     return render(request, 'inventory_manager/purchase_order/add_purchase_order.html', context)
 
-def edit_purchase_order(request, order_id):
-    if not request.user.role == 'inventory_manager':
-        messages.error(request, 'You do not have permission to access this page.')
-        return redirect('crud:user_login')
-        
+@login_required
+@admin_required
+def delete_purchase_order(request, purchase_id):
     try:
-        purchase = Purchase.objects.get(id=order_id)
-        items = purchase.items.select_related('product').all()
+        purchase_order = Purchase.objects.get(id=purchase_id)
+        
+        if request.method == 'POST':
+            # Delete all associated purchase items first
+            purchase_order.items.all().delete()
+            # Then delete the purchase order
+            purchase_order.delete()
+            messages.success(request, 'Purchase order deleted successfully.')
+            return redirect('crud:admin_purchase_orders')
+        
+        return render(request, 'admin_panel/purchase_orders/delete_purchase_order.html', {
+            'purchase_order': purchase_order
+        })
     except Purchase.DoesNotExist:
         messages.error(request, 'Purchase order not found.')
-        return redirect('crud:purchase_orders')
-        
-    if request.method == 'POST':
-        try:
-            supplier_id = request.POST.get('supplier')
-            supplier = Supplier.objects.get(id=supplier_id)
-            purchase.supplier = supplier
-            purchase.status = request.POST.get('status')
-            products = request.POST.getlist('products[]')
-            quantities = request.POST.getlist('quantities[]')
-            unit_prices = request.POST.getlist('unit_prices[]')
-            
-            total_cost = Decimal('0.00')
-            
-            purchase.items.all().delete()
-            
-            for i in range(len(products)):
-                product = Product.objects.get(id=products[i])
-                quantity = Decimal(quantities[i])
-                unit_price = Decimal(unit_prices[i])
-                subtotal = quantity * unit_price
-                
-                PurchaseItem.objects.create(
-                    purchase=purchase,
-                    product=product,
-                    quantity=quantity,
-                    unit_cost_at_purchase=unit_price,
-                    subtotal_cost=subtotal
-                )
-                total_cost += subtotal
-            
-            purchase.total_cost = total_cost
-            purchase.save()
-            
-            messages.success(request, 'Purchase order updated successfully.')
-            return redirect('crud:view_purchase_order', order_id=purchase.id)
-        except Exception as e:
-            messages.error(request, f'Error updating purchase order: {str(e)}')
-    
-    suppliers = Supplier.objects.all()
-    products = Product.objects.all()
-    context = {
-        'purchase': purchase,
-        'suppliers': suppliers,
-        'products': products,
-        'items': items,
-    }
-    return render(request, 'inventory_manager/purchase_order/edit_purchase_order.html', context)
-
-def delete_purchase_order(request, order_id):
-    if not request.user.role == 'inventory_manager':
-        messages.error(request, 'You do not have permission to access this page.')
-        return redirect('crud:user_login')
-        
-    if request.method != 'POST':
-        messages.error(request, 'Invalid request method.')
-        return redirect('crud:purchase_orders')
-        
-    try:
-        purchase = Purchase.objects.get(id=order_id)
-        purchase.delete()
-        messages.success(request, 'Purchase order deleted successfully.')
-    except Purchase.DoesNotExist:
-        messages.error(request, 'Purchase order not found.')
-    except Exception as e:
-        messages.error(request, f'Error deleting purchase order: {str(e)}')
-    
-    return redirect('crud:purchase_orders')
+        return redirect('crud:admin_purchase_orders')
 
 def stock_adjustments(request):
     if not request.user.role == 'inventory_manager':
@@ -1584,48 +1584,81 @@ def delete_category(request, category_id):
 
     return redirect('crud:category_list')
 
-def view_purchase_order(request, order_id):
-    if not request.user.role == 'inventory_manager':
-        messages.error(request, 'You do not have permission to access this page.')
-        return redirect('crud:user_login')
-        
+def view_purchase_order(request, purchase_id):
     try:
-        purchase = Purchase.objects.select_related('supplier').get(id=order_id)
-        items = purchase.items.select_related('product').all()
+        purchase = Purchase.objects.get(id=purchase_id)
         
-        context = {
-            'purchase': purchase,
-            'items': items,
-        }
-        return render(request, 'inventory_manager/purchase_order/view_purchase_order.html', context)
+        if request.method == 'POST' and 'mark_as_received' in request.POST:
+            if purchase.status == 'pending':
+                # Update each product's stock if not already updated
+                if not purchase.stock_updated:
+                    stock_updates = []
+                    for item in purchase.items.all():
+                        product = item.product
+                        old_stock = product.stock
+                        product.stock += item.quantity
+                        product.save()
+                        stock_updates.append(f"{product.product_name}: {old_stock} → {product.stock} (+{item.quantity})")
+                    purchase.stock_updated = True
+                
+                purchase.status = 'received'
+                purchase.received_by = request.user
+                purchase.save()
+                
+                if stock_updates:
+                    message = "Purchase order marked as received. Stock updates:\n" + "\n".join(stock_updates)
+                    messages.success(request, message)
+            else:
+                messages.error(request, 'Only pending purchase orders can be marked as received.')
+        
+        # Always render the template instead of redirecting
+        return render(request, 'admin_panel/purchase_orders/view_purchase_order.html', {
+            'purchase_order': purchase
+        })
     except Purchase.DoesNotExist:
         messages.error(request, 'Purchase order not found.')
-        return redirect('crud:purchase_orders')
+        return redirect('crud:admin_purchase_orders')
 
-def cancel_purchase_order(request, order_id):
-    if not request.user.role == 'inventory_manager':
-        messages.error(request, 'You do not have permission to access this page.')
-        return redirect('crud:user_login')
-        
-    if request.method != 'POST':
-        messages.error(request, 'Invalid request method.')
-        return redirect('crud:purchase_orders')
-        
+# Add a function to update stock for already received orders
+@login_required
+@admin_required
+def update_received_order_stock(request, purchase_id):
     try:
-        purchase = Purchase.objects.get(id=order_id)
-        if purchase.status != 'PENDING':
-            messages.error(request, 'Only pending orders can be cancelled.')
-            return redirect('crud:purchase_orders')
+        purchase = Purchase.objects.get(id=purchase_id)
+        
+        if purchase.status == 'received' and not purchase.stock_updated:
+            # Update each product's stock
+            for item in purchase.items.all():
+                product = item.product
+                old_stock = product.stock
+                product.stock += item.quantity
+                product.save()
             
-        purchase.status = 'CANCELLED'
-        purchase.save()
-        messages.success(request, 'Purchase order cancelled successfully.')
+            purchase.stock_updated = True
+            purchase.save()
+        else:
+            if purchase.stock_updated:
+                messages.info(request, 'Stock has already been updated for this purchase order.')
+            else:
+                messages.error(request, 'Can only update stock for received purchase orders.')
+        
+        return redirect('crud:view_purchase_order', purchase_id=purchase_id)
     except Purchase.DoesNotExist:
         messages.error(request, 'Purchase order not found.')
-    except Exception as e:
-        messages.error(request, f'Error cancelling purchase order: {str(e)}')
+        return redirect('crud:admin_purchase_orders')
+
+def cancel_purchase_order(request, purchase_id):
+    purchase_order = get_object_or_404(Purchase, pk=purchase_id)
+    if request.method == 'POST':
+        purchase_order.status = 'cancelled'
+        purchase_order.save()
+        messages.info(request, f"Purchase Order #{purchase_id} has been cancelled.")
+        return redirect('crud:admin_purchase_orders')
     
-    return redirect('crud:purchase_orders')
+    context = {
+        'purchase_order': purchase_order
+    }
+    return render(request, 'admin_panel/purchase_orders/cancel_purchase_order.html', context)
 
 def inventory_products(request):
     if not request.user.role == 'inventory_manager':
@@ -1648,11 +1681,11 @@ def inventory_products(request):
     
     stock_status = request.GET.get('stock_status', '')
     if stock_status == 'low':
-        products = products.filter(stock_quantity__lte=F('minimum_stock_level'))
+        products = products.filter(stock__lte=F('minimum_stock_level'))
     elif stock_status == 'out':
-        products = products.filter(stock_quantity=0)
+        products = products.filter(stock=0)
     elif stock_status == 'adequate':
-        products = products.filter(stock_quantity__gt=F('minimum_stock_level'))
+        products = products.filter(stock__gt=F('minimum_stock_level'))
     
     paginator = Paginator(products.order_by('product_name'), 10)
     page = request.GET.get('page')
@@ -1681,7 +1714,7 @@ def inventory_add_product(request):
                 description=request.POST.get('description'),
                 sku=request.POST.get('sku'),
                 price=request.POST.get('price'),
-                stock_quantity=request.POST.get('stock_quantity'),
+                stock=request.POST.get('stock', 0),
                 minimum_stock_level=request.POST.get('minimum_stock_level'),
                 image=request.FILES.get('image'),
                 category=Category.objects.get(id=category_id) if category_id else None,
@@ -1717,7 +1750,7 @@ def inventory_edit_product(request, product_id):
             product.description = request.POST.get('description')
             product.sku = request.POST.get('sku')
             product.price = request.POST.get('price')
-            product.stock_quantity = request.POST.get('stock_quantity')
+            product.stock = request.POST.get('stock', product.stock)
             product.minimum_stock_level = request.POST.get('minimum_stock_level')
             product.category = Category.objects.get(id=category_id) if category_id else None
             product.is_active = 'is_active' in request.POST
@@ -2103,6 +2136,7 @@ def pos_sales_report(request):
         daily_labels.append(current.strftime('%b %d'))
         daily_sales.append(float(day_sales))
         current += timedelta(days=1)
+    
     
     # Get top products data
     top_products = SaleItem.objects.filter(

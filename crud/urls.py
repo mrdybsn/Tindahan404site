@@ -41,8 +41,11 @@ urlpatterns = [
 
     path('admin/purchase_orders/', views.admin_purchase_orders, name='admin_purchase_orders'),
     path('admin/purchase_orders/add/', views.admin_add_purchase_order, name='admin_add_purchase_order'),
+    path('admin/purchase_orders/<int:purchase_id>/', views.view_purchase_order, name='view_purchase_order'),
     path('admin/purchase_orders/edit/<int:purchase_id>/', views.edit_purchase_orders, name='edit_purchase_orders'),
+    path('admin/purchase_orders/delete/<int:purchase_id>/', views.delete_purchase_order, name='delete_purchase_order'),
     path('admin/purchase_orders/cancel/<int:purchase_id>/', views.cancel_purchase_order, name='cancel_purchase_order'),
+    path('admin/purchase_orders/update_stock/<int:purchase_id>/', views.update_received_order_stock, name='update_received_order_stock'),
 
     path('admin/purchase_items/', views.admin_purchase_items, name='admin_purchase_items'),
     path('admin/purchase_items/add/', views.add_purchase_item, name='add_purchase_item'),

@@ -46,29 +46,33 @@ class Product(models.Model):
     category = models.ForeignKey(Category, on_delete=models.SET_NULL, null=True, blank=True, related_name='products')
     price = models.DecimalField(max_digits=10, decimal_places=2)
     cost_price = models.DecimalField(max_digits=10, decimal_places=2, blank=True, null=True)
-    stock_quantity = models.IntegerField(default=0)
-    sku = models.CharField( max_length=50, unique=True, blank=True, null=True)
-    barcode = models.CharField( max_length=100, unique=True, blank=True, null=True)
-    minimum_stock_level = models.IntegerField( default=5)
+    stock = models.IntegerField(default=0)  # Main stock field
+    sku = models.CharField(max_length=50, unique=True, blank=True, null=True)
+    barcode = models.CharField(max_length=100, unique=True, blank=True, null=True)
+    minimum_stock_level = models.IntegerField(default=5)
     is_active = models.BooleanField(default=True)
     image = models.ImageField(upload_to='product_images/', blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
     class Meta:
         verbose_name = "Product"
         verbose_name_plural = "Products"
         ordering = ['product_name']
+
     def __str__(self):
         return self.product_name
+
     def get_profit_margin(self):
         if self.cost_price is not None and self.price > 0:
             return ((self.price - self.cost_price) / self.price) * 100
         return 0
+
     def is_low_stock(self):
-        return self.stock_quantity <= self.minimum_stock_level
+        return self.stock <= self.minimum_stock_level
+
     def formatted_price(self):
         return f"${self.price:.2f}"
-
 
 class Sale(models.Model):
     cashier = models.ForeignKey(User, on_delete=models.CASCADE)
@@ -163,7 +167,15 @@ class Purchase(models.Model):
     supplier = models.ForeignKey(Supplier, on_delete=models.SET_NULL, null=True, related_name='purchases')
     total_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     received_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='purchases_received')
-    status = models.CharField(max_length=50, choices=(('pending', 'Pending'),('ordered', 'Ordered'),('received', 'Received'),('cancelled', 'Cancelled')), default='pending')
+    status = models.CharField(max_length=50, choices=(
+        ('pending', 'Pending'),
+        ('ordered', 'Ordered'),
+        ('received', 'Received'),
+        ('cancelled', 'Cancelled')
+    ), default='pending')
+    expected_delivery = models.DateField(null=True, blank=True)
+    stock_updated = models.BooleanField(default=False)  # New field to track stock updates
+    
     class Meta:
         verbose_name = "Purchase Order"
         verbose_name_plural = "Purchase Orders"
@@ -174,17 +186,16 @@ class Purchase(models.Model):
 
 class PurchaseItem(models.Model):
     purchase = models.ForeignKey(Purchase, on_delete=models.CASCADE, related_name='items')
-    product = models.ForeignKey(Product, on_delete=models.SET_NULL,  null=True)
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
     quantity = models.IntegerField()
     unit_cost_at_purchase = models.DecimalField(max_digits=10, decimal_places=2)
     subtotal_cost = models.DecimalField(max_digits=10, decimal_places=2)
-    received_quantity = models.IntegerField(default=0)
-    class Meta:
-        verbose_name = "Purchase Item"
-        verbose_name_plural = "Purchase Items"
+
     def save(self, *args, **kwargs):
+        # Calculate subtotal before saving
         self.subtotal_cost = self.quantity * self.unit_cost_at_purchase
         super().save(*args, **kwargs)
+
     def __str__(self):
         return f"{self.quantity} x {self.product.product_name if self.product else 'Deleted Product'} for PO #{self.purchase.id}"
 
@@ -244,8 +255,8 @@ class StockAdjustment(models.Model):
     
     def save(self, *args, **kwargs):
         if not self.pk:  # Only update stock on creation
-            self.product.stock_quantity += self.quantity_change
-            if self.product.stock_quantity < 0:
+            self.product.stock += self.quantity_change
+            if self.product.stock < 0:
                 raise ValueError("Stock quantity cannot be negative")
             self.product.save()
         super().save(*args, **kwargs)
