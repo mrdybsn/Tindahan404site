@@ -1,0 +1,290 @@
+{% extends "layout/base.html" %}
+{% load static %}
+{% block 'title' %}Welcome to Tindahan404!{% endblock 'title' %}
+
+{% block 'content' %}
+
+<div class="bg-white font-sans m-0 p-0">
+    <nav class="top-0 fixed z-50 w-full bg-white shadow-lg px-6 py-3">
+        <div class="flex justify-between items-center">
+            <div class="flex items-center">
+                <img src="{% static 'img/tindahan404logo.png' %}" alt="Tindahan 404 Logo" class="h-12 w-auto">
+                <h1 class="ml-2 text-2xl font-bold text-teal-500">TINDAHAN 404</h1>
+            </div>
+
+            <div class="md:hidden">
+                <button id="menu-btn" class="focus:outline-none">
+                    <svg id="menu-open" class="w-6 h-6 text-teal-600" fill="none" stroke="currentColor" stroke-width="2"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M4 6h16M4 12h16M4 18h16" />
+                    </svg>
+                    <svg id="menu-close" class="w-6 h-6 text-teal-600 hidden" fill="none" stroke="currentColor" stroke-width="2"
+                    viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                        d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+
+            <div class="hidden md:flex items-center space-x-8">
+                <a href="#home" class="text-gray-700 hover:text-teal-600 font-medium">HOME</a>
+                <a href="#how-it-works" class="text-gray-700 hover:text-teal-600 font-medium">HOW IT WORKS</a>
+                <a href="#features" class="text-gray-700 hover:text-teal-600 font-medium">FEATURES</a>
+                <a href="#faq" class="text-gray-700 hover:text-teal-600 font-medium">FAQ</a>
+            </div>
+
+            <div class="hidden md:flex items-center space-x-4">
+                <a href="{% url 'crud:user_login' %}"
+                    class="px-6 py-2 border border-teal-500 text-teal-500 font-semibold rounded-lg hover:bg-gray-50 transition">LOGIN</a>
+                <a href="{% url 'crud:admin_login' %}"
+                    class="px-6 py-2 bg-teal-500 text-white font-semibold rounded-lg hover:bg-teal-600 transition">ADMIN LOGIN</a>
+            </div>
+        </div>
+
+        <div id="mobile-menu" class="hidden absolute top-full right-6 mt-2 bg-white shadow-lg rounded-lg w-56 p-4 md:hidden z-50">
+            <ul class="flex flex-col space-y-3">
+                <li>
+                    <a href="#home" class="text-gray-700 hover:text-teal-600 font-medium">HOME</a>
+                </li>
+                <li>
+                    <a href="#how-it-works" class="text-gray-700 hover:text-teal-600 font-medium">HOW IT WORKS</a>
+                </li>
+                <li>
+                    <a href="#features" class="text-gray-700 hover:text-teal-600 font-medium">FEATURES</a>
+                </li>
+                <li>
+                    <a href="#faq" class="text-gray-700 hover:text-teal-600 font-medium">FAQ</a>
+                </li>
+                <li>
+                    <hr class="border-gray-200">
+                </li>
+                <li>
+                    <a href="{% url 'crud:user_login' %}" class="block text-center py-2 border border-teal-500 text-teal-500 rounded hover:bg-gray-50">LOGIN</a>
+                </li>
+                <li>
+                    <a href="{% url 'crud:admin_login' %}" class="block text-center py-2 bg-teal-500 text-white rounded hover:bg-teal-600">ADMIN LOGIN</a>
+                </li>
+            </ul>
+        </div>
+    </nav>
+
+
+    <section id="home" class="relative overflow-hidden bg-white  pt-28 lg:pt-32 pb-16 lg:pb-24">
+        <div class="container mx-auto px-6">
+            <div class="flex flex-col-reverse lg:flex-row justify-center items-center max-w-screen-xl">
+                <div class="w-full lg:w-1/2 mt-12 lg:mt-0">
+                    <div class="bg-teal-100 text-teal-700 px-4 py-2 rounded-full inline-block mb-6 text-sm font-medium">POS & INVENTORY MANAGEMENT</div>
+                    <h1 class="text-5xl md:text-6xl font-bold mb-6 text-gray-900 leading-tight">Never <span class="text-teal-600">'Not Found':</span><br>Always in Stock, Always on Track!</h1>
+                    <p class="text-xl md:text-2xl mb-8 text-gray-600 leading-relaxed">A tech-savvy solution for Filipino Sari-Sari store management, ensuring seamless operations and well-managed inventory</p>
+                    <div class="flex flex-col sm:flex-row gap-4 mb-12">
+                        <button class="bg-teal-600 text-white px-8 py-4 rounded-full font-semibold hover:bg-teal-700 transition duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
+                            <a href="{% url 'crud:user_login' %}">GET STARTED →</a>
+                        </button>
+                        <button class="bg-white text-teal-600 px-8 py-4 rounded-full font-semibold hover:bg-gray-50 transition duration-300 border border-teal-600">
+                            <a href="#how-it-works">LEARN MORE</a>
+                        </button>
+                    </div>
+                </div>
+                <div class="w-full lg:w-1/2 mb-12 lg:mb-0 md:block hidden">
+                    <div class="lg:pl-16 lg:mr-8 xl:pl-24 xl:mr-12">
+                        <img src="{% static 'img/landing_page.jpg' %}" alt="Store Management Illustration" class="w-full h-auto object-contain ">   
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="how-it-works" class="bg-gray-50 py-20 lg:py-28">
+        <div class="container mx-auto px-6 max-w-screen-xl">
+            <h2 class="text-4xl md:text-5xl font-bold text-center text-gray-900 mb-16">How Tindahan 404 Works for Your Store</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-12 lg:gap-16">
+                <div class="flex flex-col items-center text-center p-6 bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300">
+                    <div class="bg-teal-100 text-teal-600 rounded-full h-16 w-16 flex items-center justify-center mb-6 text-3xl font-bold">1</div>
+                    <h3 class="text-2xl font-semibold text-gray-800 mb-4">Owner's Central Control</h3>
+                    <p class="text-gray-600 leading-relaxed">
+                        The store owner logs in to the main administrative panel, the heart of Tindahan 404. From here, they can set up the store's initial inventory, manage product details, and crucially, create and manage user accounts for their team.
+                    </p>
+                    <div class="mt-4 text-sm text-teal-500">
+                         (Admin Login)
+                    </div>
+                </div>
+
+                <div class="flex flex-col items-center text-center p-6 bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300">
+                    <div class="bg-teal-100 text-teal-600 rounded-full h-16 w-16 flex items-center justify-center mb-6 text-3xl font-bold">2</div>
+                    <h3 class="text-2xl font-semibold text-gray-800 mb-4">Inventory Manager's Hub</h3>
+                    <p class="text-gray-600 leading-relaxed">
+                        Designated inventory managers access their dedicated panel. Here, they can efficiently add new stock, update quantities, track incoming and outgoing products, and monitor real-time inventory levels to prevent 'Not Found' scenarios.
+                    </p>
+                     <div class="mt-4 text-sm text-teal-500">
+                         (Login > Inventory Panel)
+                    </div>
+                </div>
+
+                <div class="flex flex-col items-center text-center p-6 bg-white rounded-lg shadow-md hover:shadow-xl transition-shadow duration-300">
+                    <div class="bg-teal-100 text-teal-600 rounded-full h-16 w-16 flex items-center justify-center mb-6 text-3xl font-bold">3</div>
+                    <h3 class="text-2xl font-semibold text-gray-800 mb-4">Cashier's Point-of-Sale</h3>
+                    <p class="text-gray-600 leading-relaxed">
+                        Cashiers use their specific login to access the streamlined Point-of-Sale (POS) interface. They can quickly process customer purchases, scan items, apply discounts, and handle transactions, all while inventory updates seamlessly in the background.
+                    </p>
+                     <div class="mt-4 text-sm text-teal-500">
+                         (Login > POS)
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="features" class="bg-white py-20 lg:py-28">
+        <div class="container mx-auto px-6 max-w-screen-xl">
+            <h2 class="text-4xl md:text-5xl font-bold text-center text-gray-900 mb-16">Key Features of Tindahan 404</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-10"> {# Increased gap slightly #}
+                <div class="bg-teal-100 p-8 rounded-lg shadow-md flex flex-col items-center text-center"> {# Added padding, shadow, centering #}
+                    <div class="text-teal-600 mb-4">
+                        <svg class="h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.007 12.007 0 002 12c0 2.755 1.056 5.303 2.944 7.204L12 22l7.056-2.796A12.007 12.007 0 0022 12c0-2.755-1.056-5.303-2.944-7.204z"></path></svg>
+                    </div>
+                    <h3 class="font-semibold text-2xl mb-2 text-gray-800">Reliable Operations</h3>
+                    <p class="text-gray-600 leading-relaxed">Manage inventory, sales, and store tasks with ease, ensuring everything runs smoothly day-to-day.</p>
+                </div>
+                <div class="bg-teal-100 p-8 rounded-lg shadow-md flex flex-col items-center text-center">
+                    <div class="text-teal-600 mb-4">
+                        <svg class="h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9.75 16.75M9.75 16.75V15.75M9.75 16.75L9.75 17M10.5 17L10.5 16.75M10.5 16.75V15.75M10.5 16.75L10.5 17M13.5 17L13.5 16.75M13.5 16.75V15.75M13.5 16.75L13.5 17M14.25 17L14.25 16.75M14.25 16.75V15.75M14.25 16.75L14.25 17M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22ZM12 20C16.4183 20 20 16.4183 20 12C20 7.58172 16.4183 4 12 4C7.58172 4 4 7.58172 4 12C4 16.4183 7.58172 20 12 20Z"></path></svg>
+                    </div>
+                    <h3 class="font-semibold text-2xl mb-2 text-gray-800">Tech Meets Tradition</h3>
+                    <p class="text-gray-600 leading-relaxed">A smart, modern system specifically designed with the needs and operations of Filipino Sari-Sari store owners in mind.</p>
+                </div>
+                <div class="bg-teal-100 p-8 rounded-lg shadow-md flex flex-col items-center text-center">
+                    <div class="text-teal-600 mb-4">
+                        <svg class="h-16 w-16" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <h3 class="font-semibold text-2xl mb-2 text-gray-800">Simple & Efficient</h3>
+                    <p class="text-gray-600 leading-relaxed">Experience hassle-free and intuitive management, ensuring smooth operations and organized inventory without complexity.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+    <section id="faq" class="bg-gray-50 py-20 lg:py-28">
+        <div class="container mx-auto px-6 max-w-screen-md"> 
+            <h2 class="text-4xl md:text-5xl font-bold text-center text-gray-900 mb-16">Frequently Asked Questions</h2>
+
+            <div class="space-y-6">
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <details class="group">
+                        <summary class="flex justify-between items-center cursor-pointer font-semibold text-lg text-gray-800 focus:outline-none">
+                            Is Tindahan 404 suitable for small Sari-Sari stores?
+                            <span class="ml-2 transition-transform duration-300 transform group-open:rotate-180">
+                                <svg class="h-5 w-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </span>
+                        </summary>
+                        <p class="mt-4 text-gray-600 leading-relaxed">
+                            Absolutely! Tindahan 404 is specifically designed to meet the unique needs of Filipino Sari-Sari stores, from small neighborhood shops to slightly larger operations, making inventory and sales management simple.
+                        </p>
+                    </details>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <details class="group">
+                        <summary class="flex justify-between items-center cursor-pointer font-semibold text-lg text-gray-800 focus:outline-none">
+                            Can multiple users access the system at the same time?
+                            <span class="ml-2 transition-transform duration-300 transform group-open:rotate-180">
+                                <svg class="h-5 w-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </span>
+                        </summary>
+                        <p class="mt-4 text-gray-600 leading-relaxed">
+                            Yes, Tindahan 404 supports multiple user roles. The owner can create separate accounts for Inventory Managers and Cashiers, allowing them to access their respective panels simultaneously for efficient operations.
+                        </p>
+                    </details>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <details class="group">
+                        <summary class="flex justify-between items-center cursor-pointer font-semibold text-lg text-gray-800 focus:outline-none">
+                            Is the system accessible on different devices?
+                            <span class="ml-2 transition-transform duration-300 transform group-open:rotate-180">
+                                <svg class="h-5 w-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </span>
+                        </summary>
+                        <p class="mt-4 text-gray-600 leading-relaxed">
+                            Tindahan 404 is a web-based system, meaning it can be accessed from any device with a modern web browser and internet connection, including desktops, laptops, and tablets.
+                        </p>
+                    </details>
+                </div>
+
+                <div class="bg-white p-6 rounded-lg shadow-md">
+                    <details class="group">
+                        <summary class="flex justify-between items-center cursor-pointer font-semibold text-lg text-gray-800 focus:outline-none">
+                            How does Tindahan 404 help prevent 'Not Found' items?
+                            <span class="ml-2 transition-transform duration-300 transform group-open:rotate-180">
+                                <svg class="h-5 w-5 text-teal-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                            </span>
+                        </summary>
+                        <p class="mt-4 text-gray-600 leading-relaxed">
+                            By providing real-time inventory tracking, alerts for low stock, and efficient stock management tools for inventory managers, the system helps you maintain accurate records and ensure products are always available when customers need them.
+                        </p>
+                    </details>
+                </div>
+            </div>
+        </div>
+    </section>
+    <footer class="bg-teal-900 text-white py-12">
+        <div class="container mx-auto px-6 max-w-screen-xl"> 
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div>
+                    <div class="flex items-center mb-4">
+                        <img src="{% static 'img/tindahan404logo_2.png' %}" alt="Tindahan 404 Logo" class="h-10 w-10 mr-2">
+                        <span class="text-2xl font-bold">Tindahan 404</span>
+                    </div>
+                    <p class="text-gray-400">Empowering Filipino Sari-Sari stores with smart technology solutions.</p>
+                </div>
+                
+                <div>
+                    <h4 class="font-semibold text-lg mb-4">Features</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#features" class="hover:text-teal-400 transition duration-200">Inventory Management</a></li> 
+                        <li><a href="#features" class="hover:text-teal-400 transition duration-200">Sales Tracking</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="font-semibold text-lg mb-4">Support</h4> 
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-teal-400 transition duration-200">Help Center</a></li> 
+                        <li><a href="#" class="hover:text-teal-400 transition duration-200">Contact Us</a></li>
+                        <li><a href="#" class="hover:text-teal-400 transition duration-200">User Guide</a></li> 
+                        <li><a href="#faq" class="hover:text-teal-400 transition duration-200">FAQ</a></li> 
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="font-semibold text-lg mb-4">Company</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="#" class="hover:text-teal-400 transition duration-200">About Us</a></li> 
+                        <li><a href="#" class="hover:text-teal-400 transition duration-200">Privacy Policy</a></li>
+                        <li><a href="#" class="hover:text-teal-400 transition duration-200">Terms of Service</a></li> 
+                        <li><a href="#" class="hover:text-teal-400 transition duration-200">Blog</a></li> 
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="border-t border-gray-700 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; 2025 Tindahan 404. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+</div>
+
+<script>
+  const menuBtn = document.getElementById('menu-btn');
+  const menu = document.getElementById('mobile-menu');
+  const openIcon = document.getElementById('menu-open');
+  const closeIcon = document.getElementById('menu-close');
+
+  menuBtn.addEventListener('click', () => {
+    menu.classList.toggle('hidden');
+    openIcon.classList.toggle('hidden');
+    closeIcon.classList.toggle('hidden');
+  });
+</script>
+{% endblock 'content' %}

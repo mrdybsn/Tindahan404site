@@ -1,0 +1,80 @@
+{% extends 'layout/base_admin.html' %}
+
+{% block title %}Sale Items{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded shadow p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold">Sale Item Management</h2>
+        <a href="{% url 'crud:admin_sales' %}" class="bg-[#417690] text-white px-4 py-2 rounded hover:bg-[#30506a] transition flex items-center">
+            <span class="material-icons mr-1">receipt_long</span>
+            View Sales
+        </a>
+    </div>
+
+    <div class="bg-blue-50 border-l-4 border-blue-400 p-4 mb-4">
+        <div class="flex">
+            <div class="flex-shrink-0">
+                <span class="material-icons text-blue-400">info</span>
+            </div>
+            <div class="ml-3">
+                <p class="text-sm text-blue-700">
+                    To add items to a sale, please go to the Sales page and edit the specific sale you want to modify.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    {% if messages %}
+    <div class="mb-4">
+        {% for message in messages %}
+        <div class="p-4 {% if message.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %} rounded-md">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="overflow-x-auto">
+        <table class="min-w-full text-sm text-left border">
+            <thead class="bg-gray-100">
+                <tr>
+                    <th class="px-4 py-2 font-semibold">Sale ID</th>
+                    <th class="px-4 py-2 font-semibold">Product</th>
+                    <th class="px-4 py-2 font-semibold">Quantity</th>
+                    <th class="px-4 py-2 font-semibold">Unit Price</th>
+                    <th class="px-4 py-2 font-semibold">Subtotal</th>
+                    <th class="px-4 py-2 font-semibold">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in sale_items %}
+                <tr class="border-t hover:bg-gray-50">
+                    <td class="px-4 py-2">
+                        <a href="{% url 'crud:edit_sale' item.sale.id %}" class="text-blue-600 hover:underline">
+                            {{ item.sale.id }}
+                        </a>
+                    </td>
+                    <td class="px-4 py-2">{{ item.product.product_name }}</td>
+                    <td class="px-4 py-2">{{ item.quantity }}</td>
+                    <td class="px-4 py-2">₱ {{ item.unit_price_at_sale }}</td>
+                    <td class="px-4 py-2">₱ {{ item.subtotal }}</td>
+                    <td class="px-4 py-2">
+                        <a href="{% url 'crud:edit_sales_item' item.id %}" class="text-blue-600 hover:underline inline-flex items-center">
+                            <span class="material-icons text-sm mr-1">edit</span>
+                            Edit
+                        </a>
+                        <a href="{% url 'crud:delete_sales_item' item.id %}" class="text-red-600 hover:underline ml-2 inline-flex items-center">
+                            <span class="material-icons text-sm mr-1">delete</span>
+                            Delete
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr><td colspan="6" class="px-4 py-2 text-center text-gray-400">No sale items found.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

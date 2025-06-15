@@ -1,0 +1,273 @@
+{% extends 'layout/base_manager.html' %}
+{% load static %}
+
+{% block title %}New Purchase Order{% endblock %}
+
+{% block header %}New Purchase Order{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-lg shadow overflow-hidden">
+    <form method="post" id="purchaseOrderForm" class="p-6">
+        {% csrf_token %}
+        
+        <!-- Supplier Selection -->
+        <div class="mb-6">
+            <label for="supplier" class="block text-sm font-medium text-gray-700 mb-1">Supplier</label>
+            <select id="supplier" 
+                    name="supplier" 
+                    required
+                    class="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500">
+                <option value="">Select a supplier</option>
+                {% for supplier in suppliers %}
+                <option value="{{ supplier.id }}">{{ supplier.supplier_name }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        
+        <!-- Items Table -->
+        <div class="mb-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-medium text-gray-900">Order Items</h2>
+                <button type="button" 
+                        onclick="addItem()" 
+                        class="bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg flex items-center">
+                    <span class="material-icons mr-2">add</span>
+                    Add Item
+                </button>
+            </div>
+            
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Price</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="itemsTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- Items will be added here dynamically -->
+                    </tbody>
+                    <tfoot class="bg-gray-50">
+                        <tr>
+                            <td colspan="3" class="px-6 py-4 text-right text-sm font-medium text-gray-900">Total:</td>
+                            <td colspan="2" class="px-6 py-4 text-left text-sm font-medium text-gray-900">₱<span id="totalAmount">0.00</span></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Submit Button -->
+        <div class="flex justify-end">
+            <button type="button" 
+                    onclick="window.history.back()" 
+                    class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg mr-4 hover:bg-gray-200">
+                Cancel
+            </button>
+            <button type="submit" 
+                    class="bg-teal-500 text-white px-6 py-2 rounded-lg hover:bg-teal-600 flex items-center">
+                <span class="material-icons mr-2">save</span>
+                Create Order
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let products = {{ products|safe }};
+let items = [];
+
+function formatCurrency(number) {
+    return parseFloat(number).toFixed(2);
+}
+
+function calculateSubtotal(quantity, price) {
+    return quantity * price;
+}
+
+function updateTotal() {
+    let total = items.reduce((sum, item) => sum + (item.quantity * item.unit_price), 0);
+    document.getElementById('totalAmount').textContent = formatCurrency(total);
+}
+
+function createProductSelect(selectedId = '') {
+    let select = document.createElement('select');
+    select.className = 'w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500';
+    select.required = true;
+    
+    let defaultOption = document.createElement('option');
+    defaultOption.value = '';
+    defaultOption.textContent = 'Select a product';
+    select.appendChild(defaultOption);
+    
+    products.forEach(product => {
+        let option = document.createElement('option');
+        option.value = product.product_id;
+        option.textContent = product.product_name;
+        if (product.product_id === selectedId) {
+            option.selected = true;
+        }
+        select.appendChild(option);
+    });
+    
+    return select;
+}
+
+function addItem(item = null) {
+    let tr = document.createElement('tr');
+    let index = items.length;
+    
+    // Product cell
+    let tdProduct = document.createElement('td');
+    tdProduct.className = 'px-6 py-4 whitespace-nowrap';
+    let productSelect = createProductSelect(item?.product_id);
+    productSelect.name = `products[]`;
+    productSelect.onchange = () => {
+        const selectedProduct = products.find(p => p.product_id === productSelect.value);
+        if (selectedProduct) {
+            tr.querySelector('input[name="unit_prices[]"]').value = selectedProduct.price;
+        }
+        updateItem(index);
+    };
+    tdProduct.appendChild(productSelect);
+    
+    // Quantity cell
+    let tdQuantity = document.createElement('td');
+    tdQuantity.className = 'px-6 py-4 whitespace-nowrap';
+    let quantityInput = document.createElement('input');
+    quantityInput.type = 'number';
+    quantityInput.name = `quantities[]`;
+    quantityInput.min = '1';
+    quantityInput.value = item?.quantity || '1';
+    quantityInput.required = true;
+    quantityInput.className = 'w-24 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500';
+    quantityInput.onchange = () => updateItem(index);
+    tdQuantity.appendChild(quantityInput);
+    
+    // Unit price cell
+    let tdPrice = document.createElement('td');
+    tdPrice.className = 'px-6 py-4 whitespace-nowrap';
+    let priceInput = document.createElement('input');
+    priceInput.type = 'number';
+    priceInput.name = `unit_prices[]`;
+    priceInput.min = '0.01';
+    priceInput.step = '0.01';
+    priceInput.value = item?.unit_price || '0.00';
+    priceInput.required = true;
+    priceInput.className = 'w-32 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500';
+    priceInput.onchange = () => updateItem(index);
+    tdPrice.appendChild(priceInput);
+    
+    // Subtotal cell
+    let tdSubtotal = document.createElement('td');
+    tdSubtotal.className = 'px-6 py-4 whitespace-nowrap';
+    let subtotalSpan = document.createElement('span');
+    subtotalSpan.className = 'text-sm text-gray-900';
+    subtotalSpan.textContent = '₱0.00';
+    tdSubtotal.appendChild(subtotalSpan);
+    
+    // Actions cell
+    let tdActions = document.createElement('td');
+    tdActions.className = 'px-6 py-4 whitespace-nowrap text-right';
+    let deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'text-red-600 hover:text-red-900';
+    deleteButton.onclick = () => removeItem(index);
+    deleteButton.innerHTML = '<span class="material-icons">delete</span>';
+    tdActions.appendChild(deleteButton);
+    
+    tr.appendChild(tdProduct);
+    tr.appendChild(tdQuantity);
+    tr.appendChild(tdPrice);
+    tr.appendChild(tdSubtotal);
+    tr.appendChild(tdActions);
+    
+    document.getElementById('itemsTableBody').appendChild(tr);
+    
+    items.push({
+        product_id: item?.product_id || '',
+        quantity: parseInt(item?.quantity || 1),
+        unit_price: parseFloat(item?.unit_price || 0),
+        element: tr
+    });
+    
+    updateItem(index);
+}
+
+function updateItem(index) {
+    let item = items[index];
+    let tr = item.element;
+    
+    item.product_id = tr.querySelector('select').value;
+    item.quantity = parseInt(tr.querySelector('input[type="number"][name="quantities[]"]').value) || 0;
+    item.unit_price = parseFloat(tr.querySelector('input[type="number"][name="unit_prices[]"]').value) || 0;
+    
+    let subtotal = calculateSubtotal(item.quantity, item.unit_price);
+    tr.querySelector('td:nth-child(4) span').textContent = `₱${formatCurrency(subtotal)}`;
+    
+    updateTotal();
+}
+
+function removeItem(index) {
+    items[index].element.remove();
+    items.splice(index, 1);
+    // Update indices for remaining items
+    items.forEach((item, i) => {
+        let tr = item.element;
+        tr.querySelector('select').onchange = () => {
+            const selectedProduct = products.find(p => p.product_id === tr.querySelector('select').value);
+            if (selectedProduct) {
+                tr.querySelector('input[name="unit_prices[]"]').value = selectedProduct.price;
+            }
+            updateItem(i);
+        };
+        tr.querySelector('input[name="quantities[]"]').onchange = () => updateItem(i);
+        tr.querySelector('input[name="unit_prices[]"]').onchange = () => updateItem(i);
+        tr.querySelector('button').onclick = () => removeItem(i);
+    });
+    updateTotal();
+}
+
+document.getElementById('purchaseOrderForm').onsubmit = function(e) {
+    e.preventDefault();
+    
+    if (items.length === 0) {
+        alert('Please add at least one item to the purchase order.');
+        return false;
+    }
+    
+    let formData = new FormData(this);
+    formData.append('items', JSON.stringify(items));
+    
+    fetch(this.action, {
+        method: 'POST',
+        body: formData,
+        headers: {
+            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = "{% url 'crud:purchase_orders' %}";
+        } else {
+            alert(data.error || 'An error occurred while creating the purchase order.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while creating the purchase order.');
+    });
+    
+    return false;
+};
+
+// Add first item row by default
+addItem();
+</script>
+{% endblock %} 

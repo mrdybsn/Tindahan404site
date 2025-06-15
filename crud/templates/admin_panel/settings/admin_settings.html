@@ -1,0 +1,52 @@
+{% extends 'layout/base_admin.html' %}
+{% load static %}
+
+{% block title %}Admin Settings{% endblock %}
+
+{% block content %}
+<div class="flex flex-col min-h-screen bg-gray-100 text-gray-800 font-sans antialiased">
+    <!-- Page Header -->
+    <header class="bg-white shadow-md border-b border-gray-200 px-8 py-6">
+        <div class="max-w-6xl mx-auto">
+            <h1 class="text-3xl font-extrabold text-gray-900">Admin Settings</h1>
+            <p class="text-gray-600 mt-1">Manage global settings for your application.</p>
+        </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="flex-1 p-8">
+        <div class="max-w-6xl mx-auto">
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-200">
+                <div class="p-8 border-b border-gray-200 bg-gray-50">
+                    <h2 class="text-2xl font-bold text-gray-800">General Settings</h2>
+                    <p class="text-gray-600 mt-1">Configure basic site information.</p>
+                </div>
+                <div class="p-8">
+                    <form method="post">
+                        {% csrf_token %}
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <div>
+                                <label for="site_name" class="block text-gray-700 font-semibold mb-2 text-sm">Site Name</label>
+                                <input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition duration-150 ease-in-out" id="site_name" name="site_name" value="{{ site_name }}" placeholder="Enter site name">
+                                <p class="mt-1 text-xs text-gray-500">The primary name displayed across your website.</p>
+                            </div>
+                            <div>
+                                <label for="site_description" class="block text-gray-700 font-semibold mb-2 text-sm">Site Description</label>
+                                <textarea class="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-teal-500 transition duration-150 ease-in-out h-24 resize-y" id="site_description" name="site_description" placeholder="A brief description of your site">{{ site_description }}</textarea>
+                                <p class="mt-1 text-xs text-gray-500">A short description for SEO and general context.</p>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-end mt-8 pt-6 border-t border-gray-200">
+                            <button type="submit" class="px-8 py-3 bg-teal-600 text-white font-semibold rounded-lg shadow-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-75 transition duration-150 ease-in-out">
+                                Save Settings
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+{% endblock %}

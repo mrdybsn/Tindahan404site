@@ -1,0 +1,149 @@
+{% extends 'layout/base_admin.html' %}
+{% load static %}
+
+{% block title %}Add Purchase Item{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded shadow p-6">
+    <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-bold">Add Purchase Item</h2>
+    </div>
+
+    {% if messages %}
+    <div class="mb-4">
+        {% for message in messages %}
+        <div class="p-4 {% if message.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %} rounded-md">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="post" class="space-y-6">
+        {% csrf_token %}
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label for="purchase" class="block text-sm font-medium text-gray-700">Purchase Order</label>
+                <select name="purchase" 
+                        id="purchase" 
+                        required 
+                        class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-[#417690] focus:ring-[#417690]">
+                    <option value="">Select a purchase order</option>
+                    {% for purchase in purchases %}
+                        <option value="{{ purchase.id }}">Purchase Order #{{ purchase.id }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label for="product" class="block text-sm font-medium text-gray-700">Product</label>
+                <select name="product" 
+                        id="product" 
+                        required 
+                        class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-[#417690] focus:ring-[#417690]">
+                    <option value="">Select a product</option>
+                    {% for product in products %}
+                        <option value="{{ product.id }}" data-price="{{ product.selling_price }}">
+                            {{ product.product_name }} (Stock: {{ product.stock }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label for="quantity" class="block text-sm font-medium text-gray-700">Quantity</label>
+                <input type="number" 
+                       name="quantity" 
+                       id="quantity" 
+                       required 
+                       min="1"
+                       class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-[#417690] focus:ring-[#417690]">
+            </div>
+
+            <div>
+                <label for="unit_cost" class="block text-sm font-medium text-gray-700">Unit Cost</label>
+                <div class="mt-1 relative rounded shadow-sm">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span class="text-gray-500 sm:text-sm">₱</span>
+                    </div>
+                    <input type="number" 
+                           name="unit_cost" 
+                           id="unit_cost" 
+                           step="0.01" 
+                           required 
+                           class="pl-7 block w-full rounded border-gray-300 shadow-sm focus:border-[#417690] focus:ring-[#417690]">
+                </div>
+            </div>
+
+            <div>
+                <label for="received_quantity" class="block text-sm font-medium text-gray-700">Received Quantity</label>
+                <input type="number" 
+                       name="received_quantity" 
+                       id="received_quantity" 
+                       required 
+                       min="0"
+                       class="mt-1 block w-full rounded border-gray-300 shadow-sm focus:border-[#417690] focus:ring-[#417690]">
+            </div>
+
+            <div>
+                <label for="subtotal" class="block text-sm font-medium text-gray-700">Subtotal</label>
+                <div class="mt-1 relative rounded shadow-sm">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span class="text-gray-500 sm:text-sm">₱</span>
+                    </div>
+                    <input type="number" 
+                           name="subtotal" 
+                           id="subtotal" 
+                           step="0.01" 
+                           required 
+                           readonly
+                           class="pl-7 block w-full rounded border-gray-300 bg-gray-50 shadow-sm">
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end space-x-4 mt-6">
+            <a href="{% url 'crud:admin_purchase_items' %}" 
+               class="px-4 py-2 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition flex items-center">
+                <span class="material-icons mr-1">arrow_back</span>
+                Back to Purchase Items
+            </a>
+            <button type="submit" 
+                    class="px-4 py-2 bg-[#417690] text-white rounded hover:bg-[#30506a] transition flex items-center">
+                <span class="material-icons mr-1">save</span>
+                Save Purchase Item
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const productSelect = document.getElementById('product');
+        const quantityInput = document.getElementById('quantity');
+        const unitCostInput = document.getElementById('unit_cost');
+        const subtotalInput = document.getElementById('subtotal');
+
+        // Set suggested price when product changes
+        productSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption.value) {
+                const suggestedPrice = parseFloat(selectedOption.dataset.price);
+                unitCostInput.value = suggestedPrice.toFixed(2);
+                calculateSubtotal();
+            }
+        });
+
+        // Calculate subtotal when quantity or unit cost changes
+        function calculateSubtotal() {
+            const quantity = parseFloat(quantityInput.value) || 0;
+            const unitCost = parseFloat(unitCostInput.value) || 0;
+            const subtotal = quantity * unitCost;
+            subtotalInput.value = subtotal.toFixed(2);
+        }
+
+        quantityInput.addEventListener('input', calculateSubtotal);
+        unitCostInput.addEventListener('input', calculateSubtotal);
+    });
+</script>
+{% endblock %} 

@@ -1,0 +1,103 @@
+{% extends 'layout/base_admin.html' %}
+{% load static %}
+
+{% block title %}Sales{% endblock %}
+
+{% block content %}
+<div class="flex flex-col min-h-screen bg-gray-50">
+    <header class="bg-white shadow-sm border-b sticky top-0 z-10">
+        <div class="flex items-center justify-between px-8 py-4">
+            <h1 class="text-2xl font-bold text-gray-800">Sales</h1>
+            <a href="{% url 'crud:add_sale' %}" class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
+                <span class="material-icons align-middle mr-1">point_of_sale</span>
+                Add Sale
+            </a>
+        </div>
+    </header>
+
+    <div class="flex-1 p-8">
+        <div class="bg-white rounded-lg shadow-sm">
+            {% if messages %}
+            <div class="p-4">
+                {% for message in messages %}
+                <div class="p-4 {% if message.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %} rounded-md">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cashier</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Method</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for sale in sales %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 text-sm text-gray-900">{{ sale.transaction_date|date:'Y-m-d H:i' }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900">₱ {{ sale.total_amount }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900">{{ sale.cashier.get_full_name|default:sale.cashier.username }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900">{{ sale.get_payment_method_display }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900">{{ sale.customer_name|default:'-' }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">
+                                <div class="flex space-x-2">
+                                    <a href="{% url 'crud:edit_sale' sale.id %}" class="text-blue-600 hover:text-blue-800">
+                                        <span class="material-icons">edit</span>
+                                    </a>
+                                    <a href="{% url 'crud:delete_sale' sale.id %}" class="text-red-600 hover:text-red-800">
+                                        <span class="material-icons">delete</span>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="6" class="px-6 py-4 text-center text-gray-500">No sales found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if sales.has_other_pages %}
+            <div class="bg-white px-4 py-3 flex items-center justify-between border-t border-gray-200 sm:px-6">
+                <div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
+                    <p class="text-sm text-gray-700">
+                        Showing <span class="font-medium">{{ sales.start_index }}</span>
+                        to <span class="font-medium">{{ sales.end_index }}</span>
+                        of <span class="font-medium">{{ sales.paginator.count }}</span> results
+                    </p>
+                    <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
+                        {% if sales.has_previous %}
+                        <a href="?page={{ sales.previous_page_number }}" class="px-2 py-2 rounded-l-md border bg-white text-gray-500 hover:bg-gray-50">
+                            <span class="material-icons text-lg">chevron_left</span>
+                        </a>
+                        {% endif %}
+                        {% for num in sales.paginator.page_range %}
+                            {% if sales.number == num %}
+                            <span class="px-4 py-2 border bg-teal-50 text-teal-600">{{ num }}</span>
+                            {% elif num > sales.number|add:'-3' and num < sales.number|add:'3' %}
+                            <a href="?page={{ num }}" class="px-4 py-2 border bg-white text-gray-700 hover:bg-gray-50">{{ num }}</a>
+                            {% endif %}
+                        {% endfor %}
+                        {% if sales.has_next %}
+                        <a href="?page={{ sales.next_page_number }}" class="px-2 py-2 rounded-r-md border bg-white text-gray-500 hover:bg-gray-50">
+                            <span class="material-icons text-lg">chevron_right</span>
+                        </a>
+                        {% endif %}
+                    </nav>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,170 @@
+{% extends 'layout/base_manager.html' %}
+{% load static %}
+
+{% block title %}{% if product %}Edit{% else %}Add{% endif %} Product{% endblock %}
+
+{% block header %}{% if product %}Edit{% else %}Add{% endif %} Product{% endblock %}
+
+{% block header_actions %}
+<a href="{% url 'crud:inventory_products' %}" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg flex items-center">
+    <span class="material-icons mr-2">arrow_back</span>
+    Back to Products
+</a>
+{% endblock %}
+
+{% block content %}
+<div class="bg-white rounded-lg shadow-md p-6">
+    {% if messages %}
+    <div class="mb-6">
+        {% for message in messages %}
+        <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-red-100 text-red-700{% elif message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <form method="POST" enctype="multipart/form-data" class="space-y-6">
+        {% csrf_token %}
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Basic Information -->
+            <div class="space-y-6">
+                <h2 class="text-lg font-semibold text-gray-800">Basic Information</h2>
+                
+                <div>
+                    <label for="product_name" class="block text-sm font-medium text-gray-700">Product Name*</label>
+                    <input type="text" 
+                           id="product_name" 
+                           name="product_name" 
+                           value="{{ product.product_name|default:'' }}"
+                           required 
+                           class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                           placeholder="Enter product name">
+                </div>
+
+                <div>
+                    <label for="category" class="block text-sm font-medium text-gray-700">Category</label>
+                    <select id="category" 
+                            name="category" 
+                            class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                        <option value="">Select a category</option>
+                        {% for category in categories %}
+                        <option value="{{ category.id }}" {% if product and product.category.id == category.id %}selected{% endif %}>
+                            {{ category.category_name }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label for="description" class="block text-sm font-medium text-gray-700">Description</label>
+                    <textarea id="description" 
+                              name="description" 
+                              rows="4" 
+                              class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                              placeholder="Enter product description">{{ product.product_description|default:'' }}</textarea>
+                </div>
+
+                <div>
+                    <label for="sku" class="block text-sm font-medium text-gray-700">SKU</label>
+                    <input type="text" 
+                           id="sku" 
+                           name="sku" 
+                           value="{{ product.sku|default:'' }}"
+                           class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                           placeholder="Enter SKU (optional)">
+                </div>
+            </div>
+
+            <!-- Stock and Pricing -->
+            <div class="space-y-6">
+                <h2 class="text-lg font-semibold text-gray-800">Stock and Pricing</h2>
+                
+                <div>
+                    <label for="stock_quantity" class="block text-sm font-medium text-gray-700">Stock Quantity*</label>
+                    <input type="number" 
+                           id="stock_quantity" 
+                           name="stock_quantity" 
+                           value="{{ product.stock_quantity|default:'0' }}"
+                           required 
+                           min="0"
+                           class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                </div>
+
+                <div>
+                    <label for="minimum_stock_level" class="block text-sm font-medium text-gray-700">Minimum Stock Level*</label>
+                    <input type="number" 
+                           id="minimum_stock_level" 
+                           name="minimum_stock_level" 
+                           value="{{ product.minimum_stock_level|default:'5' }}"
+                           required 
+                           min="0"
+                           class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                </div>
+
+                <div>
+                    <label for="price" class="block text-sm font-medium text-gray-700">Price*</label>
+                    <div class="relative mt-1">
+                        <span class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">₱</span>
+                        <input type="number" 
+                               id="price" 
+                               name="price" 
+                               value="{{ product.price|default:'0.00' }}"
+                               required 
+                               min="0" 
+                               step="0.01"
+                               class="block w-full pl-7 rounded-lg border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500"
+                               placeholder="0.00">
+                    </div>
+                </div>
+
+                <div class="space-y-4">
+                    <h2 class="text-lg font-semibold text-gray-800">Product Image</h2>
+                    
+                    {% if product and product.image %}
+                    <div class="mb-4">
+                        <p class="text-sm text-gray-600 mb-2">Current Image:</p>
+                        <img src="{{ product.image.url }}" alt="{{ product.product_name }}" class="w-32 h-32 object-cover rounded-lg">
+                    </div>
+                    {% endif %}
+                    
+                    <div>
+                        <label for="image" class="block text-sm font-medium text-gray-700">
+                            {% if product and product.image %}Change{% else %}Upload{% endif %} Image
+                        </label>
+                        <input type="file" 
+                               id="image" 
+                               name="image" 
+                               accept="image/*"
+                               class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100">
+                        <p class="mt-1 text-sm text-gray-500">Optional: Add an image for the product.</p>
+                    </div>
+                </div>
+
+                <div class="mt-4">
+                    <label class="inline-flex items-center">
+                        <input type="checkbox" 
+                               name="is_active" 
+                               class="rounded border-gray-300 text-teal-600 shadow-sm focus:border-teal-500 focus:ring focus:ring-teal-500 focus:ring-opacity-50" 
+                               {% if not product or product.is_active %}checked{% endif %}>
+                        <span class="ml-2 text-sm text-gray-700">Active</span>
+                    </label>
+                    <p class="mt-1 text-xs text-gray-500">Inactive products won't appear in the inventory list.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end space-x-4 pt-6 border-t">
+            <a href="{% url 'crud:inventory_products' %}" 
+               class="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="px-6 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
+                {% if product %}Save Changes{% else %}Add Product{% endif %}
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %} 

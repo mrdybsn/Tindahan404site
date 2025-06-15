@@ -1,0 +1,75 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% block title %}{% endblock %} | Tindahan 404</title>
+    <link rel="stylesheet" href="{% static '/css/output.css' %}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+</head>
+<body>
+    <div class="min-h-screen flex flex-col bg-gray-100">
+        <div class="flex flex-1">
+            <!-- Sidebar -->
+            <aside class="w-64 bg-teal-800 text-white flex flex-col h-screen sticky top-0">
+                <!-- Logo/Brand -->
+                <div class="p-6 border-b border-teal-700">
+                    <span class="text-2xl font-bold tracking-wide whitespace-nowrap">Admin Panel</span>
+                </div>
+                
+                <!-- Navigation -->
+                <nav class="flex-1 overflow-y-auto py-4 px-3">
+                    <div class="space-y-2">
+                        <a href="{% url 'crud:admin_dashboard' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-teal-700 {% if request.path == '/admin/dashboard/' %}bg-teal-700{% endif %}">
+                            <span class="material-icons mr-2">dashboard</span>Dashboard
+                        </a>
+                        <a href="{% url 'crud:admin_users' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-teal-700 {% if request.path == '/admin/users/' %}bg-teal-700{% endif %}">
+                            <span class="material-icons mr-2">people</span>Users
+                        </a>
+                        <a href="{% url 'crud:admin_categories' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-teal-700 {% if request.path == '/admin/categories/' %}bg-teal-700{% endif %}">
+                            <span class="material-icons mr-2">category</span>Categories
+                        </a>
+                        <a href="{% url 'crud:admin_products' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-teal-700 {% if request.path == '/admin/products/' %}bg-teal-700{% endif %}">
+                            <span class="material-icons mr-2">inventory_2</span>Products
+                        </a>
+                        <a href="{% url 'crud:admin_sales' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-teal-700 {% if request.path == '/admin/sales/' %}bg-teal-700{% endif %}">
+                            <span class="material-icons mr-2">shopping_cart</span>Sales
+                        </a>
+                        <a href="{% url 'crud:admin_sales_items' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-teal-700 {% if request.path == '/admin/sale_items/' %}bg-teal-700{% endif %}">
+                            <span class="material-icons mr-2">receipt</span>Sale Items
+                        </a>
+                        <a href="{% url 'crud:admin_purchase_orders' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-teal-700 {% if request.path == '/admin/purchase_orders/' %}bg-teal-700{% endif %}">
+                            <span class="material-icons mr-2">assignment</span>Purchase Orders
+                        </a>
+                        <a href="{% url 'crud:admin_purchase_items' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-teal-700 {% if request.path == '/admin/purchase_items/' %}bg-teal-700{% endif %}">
+                            <span class="material-icons mr-2">add_shopping_cart</span>Purchase Items
+                        </a>
+                        <a href="{% url 'crud:admin_suppliers' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-teal-700 {% if request.path == '/admin/suppliers/' %}bg-teal-700{% endif %}">
+                            <span class="material-icons mr-2">business</span>Suppliers
+                        </a>
+                        <a href="{% url 'crud:admin_reports' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-teal-700 {% if request.path == '/admin/report/' %}bg-teal-700{% endif %}">
+                            <span class="material-icons mr-2">bar_chart</span>Reports
+                        </a>
+                        <a href="{% url 'crud:admin_settings' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-teal-700 {% if request.path == '/admin/settings/' %}bg-teal-700{% endif %}">
+                            <span class="material-icons mr-2">settings</span>Settings
+                        </a>
+                    </div>
+                </nav>
+
+                <div class="p-4 border-t border-teal-700">
+                    <a href="{% url 'crud:user_logout' %}" class="flex items-center px-3 py-2 rounded-lg hover:bg-teal-700 text-red-400">
+                        <span class="material-icons mr-2">logout</span>Logout
+                    </a>
+                </div>
+            </aside>
+
+            <div class="flex-1 flex flex-col">
+                {% block content %}{% endblock %}
+                <footer class="w-full text-center py-4 text-gray-500 text-sm bg-white border-t mt-auto">
+                    © 2025 Tindahan 404. All Rights Reserved.
+                </footer>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,105 @@
+{% extends 'layout/base_admin.html' %}
+{% load static %}
+
+{% block title %}Suppliers{% endblock %}
+
+{% block content %}
+<div class="flex flex-col min-h-screen bg-gray-50">
+    <header class="bg-white shadow-sm border-b sticky top-0 z-10">
+        <div class="flex items-center justify-between px-8 py-4">
+            <h1 class="text-2xl font-bold text-gray-800">Suppliers</h1>
+            <a href="{% url 'crud:admin_add_supplier' %}" class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700">
+                <span class="material-icons align-middle mr-1">business</span>
+                Add Supplier
+            </a>
+        </div>
+    </header>
+
+    <div class="flex-1 p-8">
+        <div class="bg-white rounded-lg shadow-sm">
+            {% if messages %}
+            <div class="p-4">
+                {% for message in messages %}
+                <div class="p-4 {% if message.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %} rounded-md">
+                    {{ message }}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Company Name</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact Person</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Contact Number</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Email</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for supplier in suppliers %}
+                        <tr class="hover:bg-gray-50">
+                            <td class="px-6 py-4 text-sm text-gray-900">{{ supplier.company_name }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900">{{ supplier.contact_person|default:"-" }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900">{{ supplier.contact_number|default:"-" }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-900">{{ supplier.email|default:"-" }}</td>
+                            <td class="px-6 py-4 text-sm text-gray-500">
+                                <div class="flex space-x-2">
+                                    <a href="{% url 'admin_panel:edit_supplier' supplier.id %}" class="text-blue-600 hover:text-blue-800">
+                                        <span class="material-icons">edit</span>
+                                    </a>
+                                    <a href="{% url 'admin_panel:delete_supplier' supplier.id %}" class="text-red-600 hover:text-red-800">
+                                        <span class="material-icons">delete</span>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
+                            <td colspan="5" class="px-6 py-4 text-center text-gray-500">No suppliers found.</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            {% if suppliers.has_other_pages %}
+            <div class="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+                <div class="flex justify-between items-center">
+                    <p class="text-sm text-gray-700">
+                        Showing
+                        <span class="font-medium">{{ suppliers.start_index }}</span>
+                        to
+                        <span class="font-medium">{{ suppliers.end_index }}</span>
+                        of
+                        <span class="font-medium">{{ suppliers.paginator.count }}</span>
+                        results
+                    </p>
+                    <nav class="inline-flex -space-x-px shadow-sm" aria-label="Pagination">
+                        {% if suppliers.has_previous %}
+                        <a href="?page={{ suppliers.previous_page_number }}" class="px-2 py-2 rounded-l-md border bg-white text-sm text-gray-500 hover:bg-gray-50">
+                            <span class="material-icons text-lg">chevron_left</span>
+                        </a>
+                        {% endif %}
+                        {% for num in suppliers.paginator.page_range %}
+                            {% if suppliers.number == num %}
+                            <span class="px-4 py-2 border bg-teal-50 text-teal-600 text-sm font-medium">{{ num }}</span>
+                            {% elif num > suppliers.number|add:'-3' and num < suppliers.number|add:'3' %}
+                            <a href="?page={{ num }}" class="px-4 py-2 border bg-white text-sm text-gray-700 hover:bg-gray-50">{{ num }}</a>
+                            {% endif %}
+                        {% endfor %}
+                        {% if suppliers.has_next %}
+                        <a href="?page={{ suppliers.next_page_number }}" class="px-2 py-2 rounded-r-md border bg-white text-sm text-gray-500 hover:bg-gray-50">
+                            <span class="material-icons text-lg">chevron_right</span>
+                        </a>
+                        {% endif %}
+                    </nav>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

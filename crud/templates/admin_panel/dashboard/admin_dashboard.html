@@ -1,0 +1,389 @@
+{% extends 'layout/base_admin.html' %}
+{% load static %}
+
+{% block title %}Admin Dashboard{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.css">
+<style>
+    .metric-card {
+        transition: transform 0.2s;
+    }
+    .metric-card:hover {
+        transform: translateY(-2px);
+    }
+    .chart-container {
+        position: relative;
+        height: 300px;
+        width: 100%;
+    }
+    .activity-icon {
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+    }
+    .activity-icon.sale {
+        background-color: rgba(13, 148, 136, 0.1);
+        color: #0d9488;
+    }
+    .activity-icon.stock {
+        background-color: rgba(79, 70, 229, 0.1);
+        color: #4f46e5;
+    }
+    .loading {
+        opacity: 0.7;
+        position: relative;
+    }
+    .loading::after {
+        content: "";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 24px;
+        height: 24px;
+        margin: -12px 0 0 -12px;
+        border: 2px solid transparent;
+        border-top-color: #0d9488;
+        border-radius: 50%;
+        animation: loading-spinner 0.8s linear infinite;
+    }
+    @keyframes loading-spinner {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+    .error-state {
+        opacity: 0.5;
+        position: relative;
+    }
+    .error-state::after {
+        content: "⚠️";
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-size: 24px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="bg-white rounded-lg shadow-md p-6 metric-card" data-metric="sales">
+            <h3 class="text-lg font-semibold text-gray-700 mb-2">Total Sales</h3>
+            <p class="text-3xl font-bold text-teal-600" data-kpi="total-sales">₱{{ total_sales|floatformat:2 }}</p>
+            <p class="text-sm text-gray-500 mt-2">
+                <span data-kpi="sales-change" class="{% if sales_change > 0 %}text-green-500{% else %}text-red-500{% endif %}">
+                    {% if sales_change > 0 %}↑{% else %}↓{% endif %} {{ sales_change|floatformat:1 }}%
+                </span>
+                from last month
+            </p>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6 metric-card" data-metric="transactions">
+            <h3 class="text-lg font-semibold text-gray-700 mb-2">Total Transactions</h3>
+            <p class="text-3xl font-bold text-teal-600" data-kpi="total-transactions">{{ total_transactions }}</p>
+            <p class="text-sm text-gray-500 mt-2">
+                <span data-kpi="transaction-change" class="{% if transaction_change > 0 %}text-green-500{% else %}text-red-500{% endif %}">
+                    {% if transaction_change > 0 %}↑{% else %}↓{% endif %} {{ transaction_change|floatformat:1 }}%
+                    </span>
+                from last month
+            </p>
+            </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6 metric-card" data-metric="products">
+            <h3 class="text-lg font-semibold text-gray-700 mb-2">Total Products</h3>
+            <p class="text-3xl font-bold text-teal-600" data-kpi="total-products">{{ total_products }}</p>
+            <p class="text-sm text-gray-500 mt-2"><span data-kpi="out-of-stock">{{ out_of_stock }}</span> out of stock</p>
+            </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6 metric-card" data-metric="users">
+            <h3 class="text-lg font-semibold text-gray-700 mb-2">Total Users</h3>
+            <p class="text-3xl font-bold text-teal-600" data-kpi="total-users">{{ total_users }}</p>
+            <p class="text-sm text-gray-500 mt-2"><span data-kpi="active-users">{{ active_users }}</span> active today</p>
+                </div>
+            </div>
+
+    <!-- Charts -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- Sales Chart -->
+            <div class="bg-white rounded-lg shadow-md p-6" data-chart="sales">
+                <h3 class="text-lg font-semibold text-gray-700 mb-4">Sales Overview</h3>
+                <div class="chart-container">
+                    <canvas id="salesChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Products Chart -->
+            <div class="bg-white rounded-lg shadow-md p-6" data-chart="products">
+                <h3 class="text-lg font-semibold text-gray-700 mb-4">Top Selling Products</h3>
+                    <div class="chart-container">
+                    <canvas id="productsChart"></canvas>
+                </div>
+                    </div>
+                </div>
+
+        <!-- Recent Activities -->
+        <div class="bg-white rounded-lg shadow-md p-6" data-section="activities">
+            <h3 class="text-lg font-semibold text-gray-700 mb-4">Recent Activities</h3>
+            <div class="space-y-4" id="activities-container">
+                {% for activity in recent_activities %}
+                <div class="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                    <span class="material-icons text-teal-600">{{ activity.icon }}</span>
+                            <div>
+                        <p class="text-gray-800">{{ activity.description }}</p>
+                        <p class="text-sm text-gray-500">{{ activity.timestamp|timesince }} ago</p>
+                            </div>
+                        </div>
+                        {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endblock %}
+
+    {% block extra_js %}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script>
+        // Parse the data from Django template
+        const salesLabels = {{ sales_labels|safe }};
+        const salesData = {{ sales_data|safe }};
+        const productLabels = {{ product_labels|safe }};
+        const productData = {{ product_data|safe }};
+
+        // Function to check if data is empty
+        function isDataEmpty(data) {
+            return !data || data.length === 0 || data.every(value => value === 0);
+        }
+
+        // Initialize sales chart
+        const salesCtx = document.getElementById('salesChart').getContext('2d');
+        const salesChart = new Chart(salesCtx, {
+            type: 'line',
+            data: {
+                labels: salesLabels,
+                datasets: [{
+                    label: 'Daily Sales',
+                    data: salesData,
+                    borderColor: '#0d9488',
+                    backgroundColor: 'rgba(13, 148, 136, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return '₱' + value.toLocaleString();
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Initialize products chart
+        const productsCtx = document.getElementById('productsChart').getContext('2d');
+        const productsChart = new Chart(productsCtx, {
+            type: 'doughnut',
+            data: {
+                labels: productLabels,
+                datasets: [{
+                    data: productData,
+                    backgroundColor: [
+                        '#0d9488',
+                        '#14b8a6',
+                        '#2dd4bf',
+                        '#5eead4',
+                        '#99f6e4'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right',
+                        display: !isDataEmpty(productData)
+                    }
+                }
+            }
+        });
+
+    // Show empty states if needed
+    if (isDataEmpty(salesData)) {
+        document.getElementById('salesEmptyState').classList.remove('hidden');
+    }
+    if (isDataEmpty(productData)) {
+        document.getElementById('productsEmptyState').classList.remove('hidden');
+    }
+
+    // Real-time updates
+    let updateInterval = null;
+    let errorCount = 0;
+    const MAX_ERRORS = 3;
+    const UPDATE_INTERVAL = 30000; // 30 seconds
+
+    function setLoadingState(element, isLoading) {
+        if (isLoading) {
+            element.classList.add('loading');
+        } else {
+            element.classList.remove('loading');
+        }
+    }
+
+    function setErrorState(element, hasError) {
+        if (hasError) {
+            element.classList.add('error-state');
+        } else {
+            element.classList.remove('error-state');
+        }
+    }
+
+    function formatCurrency(value) {
+        return '₱' + parseFloat(value).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        });
+    }
+
+    function updateActivities(activities) {
+        const container = document.getElementById('activities-container');
+        container.innerHTML = activities.map(activity => `
+            <div class="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+                <span class="material-icons text-teal-600">${activity.icon}</span>
+                <div>
+                    <p class="text-gray-800">${activity.description}</p>
+                    <p class="text-sm text-gray-500">${activity.timestamp} ago</p>
+                </div>
+            </div>
+        `).join('');
+    }
+
+    async function updateDashboard() {
+        const metrics = document.querySelectorAll('[data-metric]');
+        const charts = document.querySelectorAll('[data-chart]');
+        const activities = document.querySelector('[data-section="activities"]');
+
+        // Set loading state
+        metrics.forEach(metric => setLoadingState(metric, true));
+        charts.forEach(chart => setLoadingState(chart, true));
+        setLoadingState(activities, true);
+
+        try {
+            const response = await fetch('/admin/dashboard/data/');
+            if (!response.ok) throw new Error('Network response was not ok');
+            const data = await response.json();
+
+            // Update KPI cards
+            document.querySelector('[data-kpi="total-sales"]').textContent = formatCurrency(data.total_sales);
+            document.querySelector('[data-kpi="total-transactions"]').textContent = data.total_transactions;
+            document.querySelector('[data-kpi="total-products"]').textContent = data.total_products;
+            document.querySelector('[data-kpi="total-users"]').textContent = data.total_users;
+            document.querySelector('[data-kpi="out-of-stock"]').textContent = data.out_of_stock;
+            document.querySelector('[data-kpi="active-users"]').textContent = data.active_users;
+
+            // Update sales change indicator
+            const salesChangeElement = document.querySelector('[data-kpi="sales-change"]');
+            salesChangeElement.textContent = `${data.sales_change > 0 ? '↑' : '↓'} ${Math.abs(data.sales_change).toFixed(1)}%`;
+            salesChangeElement.className = data.sales_change > 0 ? 'text-green-500' : 'text-red-500';
+
+            // Update transaction change indicator
+            const transactionChangeElement = document.querySelector('[data-kpi="transaction-change"]');
+            transactionChangeElement.textContent = `${data.transaction_change > 0 ? '↑' : '↓'} ${Math.abs(data.transaction_change).toFixed(1)}%`;
+            transactionChangeElement.className = data.transaction_change > 0 ? 'text-green-500' : 'text-red-500';
+
+            // Update charts
+            salesChart.data.labels = data.sales_labels;
+            salesChart.data.datasets[0].data = data.sales_data;
+            salesChart.update();
+
+            productsChart.data.labels = data.product_labels;
+            productsChart.data.datasets[0].data = data.product_data;
+            productsChart.options.plugins.legend.display = !isDataEmpty(data.product_data);
+            productsChart.update();
+
+            // Toggle empty states
+            document.getElementById('salesEmptyState').classList.toggle('hidden', !isDataEmpty(data.sales_data));
+            document.getElementById('productsEmptyState').classList.toggle('hidden', !isDataEmpty(data.product_data));
+
+            // Update activities
+            if (data.recent_activities && data.recent_activities.length > 0) {
+                updateActivities(data.recent_activities);
+                document.getElementById('activitiesEmptyState').classList.add('hidden');
+            } else {
+                document.getElementById('activitiesContainer').innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <span class="material-icons text-4xl mb-2">notifications_none</span>
+                        <p>No recent activities</p>
+                    </div>
+                `;
+            }
+
+            // Reset error count on successful update
+            errorCount = 0;
+
+            // Remove loading and error states
+            metrics.forEach(metric => {
+                setLoadingState(metric, false);
+                setErrorState(metric, false);
+            });
+            charts.forEach(chart => {
+                setLoadingState(chart, false);
+                setErrorState(chart, false);
+            });
+            setLoadingState(activities, false);
+            setErrorState(activities, false);
+
+        } catch (error) {
+            console.error('Error updating dashboard:', error);
+            errorCount++;
+
+            // Set error state
+            metrics.forEach(metric => {
+                setLoadingState(metric, false);
+                setErrorState(metric, true);
+            });
+            charts.forEach(chart => {
+                setLoadingState(chart, false);
+                setErrorState(chart, true);
+            });
+            setLoadingState(activities, false);
+            setErrorState(activities, true);
+
+            // Stop updates if too many errors
+            if (errorCount >= MAX_ERRORS) {
+                console.error('Too many errors, stopping automatic updates');
+                clearInterval(updateInterval);
+                alert('Dashboard updates have been stopped due to errors. Please refresh the page.');
+            }
+        }
+    }
+
+    // Start real-time updates
+    document.addEventListener('DOMContentLoaded', () => {
+        updateInterval = setInterval(updateDashboard, UPDATE_INTERVAL);
+    });
+
+    // Clean up on page unload
+    window.addEventListener('beforeunload', () => {
+        if (updateInterval) {
+            clearInterval(updateInterval);
+        }
+    });
+</script>
+{% endblock %}

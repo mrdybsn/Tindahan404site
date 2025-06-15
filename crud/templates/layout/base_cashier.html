@@ -1,0 +1,110 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% endblock %} | Tindahan 404</title>
+    <link rel="stylesheet" href="{% static '/css/output.css' %}">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    {% block extra_css %}{% endblock %}
+</head>
+<body class="min-h-screen bg-gray-100">
+    <div class="flex h-screen">
+        <aside class="w-16 bg-teal-800 flex flex-col items-center py-4">
+            <div class="mb-8">
+                <img src="{% static 'img/tindahan404logo_2.png' %}" alt="Logo" class="w-12 h-12">
+            </div>
+
+            <nav class="flex-1 flex flex-col items-center space-y-4">
+                <a href="{% url 'crud:pos_dashboard' %}" 
+                   class="w-12 h-12 flex items-center justify-center rounded-lg {% if request.resolver_match.url_name == 'pos_dashboard' %}bg-teal-700{% else %}hover:bg-teal-700{% endif %} text-white" 
+                   title="POS">
+                    <span class="material-icons">point_of_sale</span>
+                </a>
+                
+                <a href="{% url 'crud:view_inventory' %}" 
+                   class="w-12 h-12 flex items-center justify-center rounded-lg {% if request.resolver_match.url_name == 'view_inventory' %}bg-teal-700{% else %}hover:bg-teal-700{% endif %} text-white" 
+                   title="Inventory">
+                    <span class="material-icons">inventory_2</span>
+                </a>
+                
+                <a href="{% url 'crud:analytics' %}" 
+                   class="w-12 h-12 flex items-center justify-center rounded-lg {% if request.resolver_match.url_name == 'analytics' %}bg-teal-700{% else %}hover:bg-teal-700{% endif %} text-white" 
+                   title="Analytics">
+                    <span class="material-icons">analytics</span>
+                </a>
+                
+                <a href="{% url 'crud:pos_sales_report' %}" 
+                   class="w-12 h-12 flex items-center justify-center rounded-lg {% if request.resolver_match.url_name == 'pos_sales_report' %}bg-teal-700{% else %}hover:bg-teal-700{% endif %} text-white" 
+                   title="Sales Report">
+                    <span class="material-icons">description</span>
+                </a>
+
+                <a href="{% url 'crud:pos_receipts' %}" 
+                   class="w-12 h-12 flex items-center justify-center rounded-lg {% if request.resolver_match.url_name == 'pos_receipts' %}bg-teal-700{% else %}hover:bg-teal-700{% endif %} text-white" 
+                   title="Receipts">
+                    <span class="material-icons">receipt_long</span>
+                </a>
+            </nav>
+
+            <!-- User Menu -->
+            <div class="mt-auto flex flex-col gap-4">
+                <!-- User Profile -->
+                <div class="relative group">
+                    <button class="w-12 h-12 flex items-center justify-center rounded-lg hover:bg-teal-700 text-white">
+                        <span class="material-icons">account_circle</span>
+                    </button>
+                    <div class="absolute left-full bottom-0 ml-2 hidden group-hover:block z-50">
+                        <div class="bg-white rounded-lg shadow-lg py-2 w-48">
+                            <div class="px-4 py-2 border-b border-gray-200">
+                                <p class="text-sm font-medium text-gray-900">{{ request.user.first_name }} {{ request.user.last_name }}</p>
+                                <p class="text-xs text-gray-500">{{ request.user.email }}</p>
+                                <p class="text-xs text-gray-500 mt-1">Role: {{ request.user.role|title }}</p>
+                            </div>
+                            <div class="px-4 py-2">
+                                <p class="text-xs text-gray-500">Last Login:</p>
+                                <p class="text-xs text-gray-900">{{ request.user.last_login|date:"M d, Y H:i" }}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Logout Button -->
+                <a href="{% url 'crud:user_logout' %}" 
+                   class="w-12 h-12 flex items-center justify-center rounded-lg text-red-400 hover:bg-teal-700 hover:text-white" 
+                   title="Logout">
+                    <span class="material-icons">logout</span>
+                </a>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col overflow-hidden">
+            <header class="bg-white shadow-sm">
+                <div class="flex items-center justify-between px-6 py-4">
+                    <h1 class="text-2xl font-bold text-gray-800">{% block header %}{% endblock %}</h1>
+                    {% block header_actions %}{% endblock %}
+                </div>
+            </header>
+
+            <div class="flex-1 overflow-auto p-6">
+                {% if messages %}
+                <div class="mb-6 space-y-2">
+                    {% for message in messages %}
+                    <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-red-100 text-red-700{% elif message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                        {{ message }}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+
+    {% block modals %}{% endblock %}
+    
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

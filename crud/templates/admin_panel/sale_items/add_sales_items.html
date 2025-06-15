@@ -1,0 +1,162 @@
+{% extends 'layout/base_admin.html' %}
+{% load static %}
+
+{% block title %}Add Sale Item{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-6 py-8">
+    <div class="bg-white rounded-lg shadow-lg p-6 max-w-lg mx-auto">
+        <div class="flex items-center justify-between mb-6">
+            <h2 class="text-2xl font-bold text-gray-800">Add Sale Item</h2>
+            <a href="{% url 'crud:edit_sale' sale.id %}" class="text-teal-600 hover:text-teal-700 flex items-center">
+                <span class="material-icons mr-1">arrow_back</span>
+                Back to Sale
+            </a>
+        </div>
+        
+        {% if messages %}
+        <div class="mb-6">
+            {% for message in messages %}
+            <div class="p-4 {% if message.tags == 'error' %}bg-red-100 text-red-700{% else %}bg-green-100 text-green-700{% endif %} rounded-md">
+                {{ message }}
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+        
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            <div>
+                <label for="product" class="block text-sm font-medium text-gray-700">Product</label>
+                <select name="product" 
+                        id="product" 
+                        required 
+                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                    <option value="">Select a product</option>
+                    {% for product in products %}
+                        <option value="{{ product.id }}" data-price="{{ product.price }}">
+                            {{ product.product_name }} (Stock: {{ product.stock_quantity }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div>
+                <label for="quantity" class="block text-sm font-medium text-gray-700">Quantity</label>
+                <input type="number" 
+                       name="quantity" 
+                       id="quantity" 
+                       required 
+                       min="1"
+                       class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+            </div>
+
+            <div>
+                <label for="unit_price" class="block text-sm font-medium text-gray-700">Unit Price</label>
+                <div class="relative mt-1">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span class="text-gray-500">₱</span>
+                    </div>
+                    <input type="number" 
+                           name="unit_price" 
+                           id="unit_price" 
+                           required 
+                           step="0.01"
+                           class="pl-7 block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                </div>
+            </div>
+
+            <div>
+                <label for="discount" class="block text-sm font-medium text-gray-700">Discount</label>
+                <div class="mt-1 relative rounded-md shadow-sm">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span class="text-gray-500 sm:text-sm">₱</span>
+                    </div>
+                    <input type="number" 
+                           name="discount" 
+                           id="discount" 
+                           step="0.01" 
+                           min="0"
+                           value="0"
+                           class="pl-7 block w-full rounded-md border-gray-300 shadow-sm focus:border-teal-500 focus:ring-teal-500">
+                </div>
+            </div>
+
+            <div>
+                <label for="subtotal" class="block text-sm font-medium text-gray-700">Subtotal</label>
+                <div class="mt-1 relative rounded-md shadow-sm">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <span class="text-gray-500 sm:text-sm">₱</span>
+                    </div>
+                    <input type="number" 
+                           name="subtotal" 
+                           id="subtotal" 
+                           step="0.01" 
+                           required 
+                           readonly
+                           class="pl-7 block w-full rounded-md border-gray-300 bg-gray-50 shadow-sm">
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-4">
+                <a href="{% url 'crud:edit_sale' sale.id %}" 
+                   class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition duration-200">
+                    Cancel
+                </a>
+                <button type="submit" 
+                        class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition duration-200">
+                    Add Item
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const productSelect = document.getElementById('product');
+        const quantityInput = document.getElementById('quantity');
+        const unitPriceInput = document.getElementById('unit_price');
+        const discountInput = document.getElementById('discount');
+        const subtotalInput = document.getElementById('subtotal');
+
+        // Update available stock and suggested price when product changes
+        productSelect.addEventListener('change', function() {
+            const selectedOption = this.options[this.selectedIndex];
+            if (selectedOption.value) {
+                const stockText = selectedOption.text.match(/Stock: (\d+)/)[1];
+                const suggestedPrice = parseFloat(selectedOption.getAttribute('data-price'));
+                unitPriceInput.value = suggestedPrice.toFixed(2);
+                calculateSubtotal();
+            } else {
+                unitPriceInput.value = '';
+            }
+        });
+
+        // Calculate subtotal when quantity, unit price, or discount changes
+        function calculateSubtotal() {
+            const quantity = parseFloat(quantityInput.value) || 0;
+            const unitPrice = parseFloat(unitPriceInput.value) || 0;
+            const discount = parseFloat(discountInput.value) || 0;
+            const subtotal = (quantity * unitPrice) - discount;
+            subtotalInput.value = subtotal.toFixed(2);
+        }
+
+        quantityInput.addEventListener('input', calculateSubtotal);
+        unitPriceInput.addEventListener('input', calculateSubtotal);
+        discountInput.addEventListener('input', calculateSubtotal);
+
+        // Validate quantity against available stock
+        quantityInput.addEventListener('input', function() {
+            const availableStock = parseInt(stockText);
+            const quantity = parseInt(this.value) || 0;
+            
+            if (quantity > availableStock) {
+                this.setCustomValidity(`Maximum available stock is ${availableStock}`);
+            } else {
+                this.setCustomValidity('');
+            }
+        });
+    });
+</script>
+{% endblock %} 

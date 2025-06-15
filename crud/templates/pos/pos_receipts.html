@@ -1,0 +1,184 @@
+{% extends 'layout/base_cashier.html' %}
+{% load static %}
+
+{% block title %}POS Receipts{% endblock %}
+
+{% block header %}Receipts{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="bg-white rounded-lg shadow-lg p-6">
+        <h2 class="text-2xl font-bold mb-6">Transaction History</h2>
+        
+        {% if not sales %}
+        <div class="text-center py-8">
+            <p class="text-gray-600">No transactions found.</p>
+        </div>
+        {% else %}
+        <div class="space-y-6">
+            {% for sale_data in sales %}
+            <div class="border rounded-lg p-4 bg-gray-50">
+                <div class="flex justify-between items-center mb-4">
+                    <div>
+                        <h3 class="text-lg font-semibold">Receipt #{{ sale_data.sale.id }}</h3>
+                        <p class="text-gray-600">{{ sale_data.date }}</p>
+                    </div>
+                    <button onclick="printReceipt('receipt-{{ sale_data.sale.id }}')" 
+                            class="bg-teal-600 text-white px-4 py-2 rounded hover:bg-teal-700 transition flex items-center">
+                        <span class="material-icons mr-1">print</span>
+                        Print
+                    </button>
+    </div>
+
+                <div id="receipt-{{ sale_data.sale.id }}" class="bg-white p-4 rounded border">
+                    <!-- Store Header -->
+                    <div class="text-center mb-6">
+                        <h4 class="text-3xl font-bold tracking-wider">TINDAHAN 404</h4>
+                        <p class="text-gray-600 mt-1">Roxas City, Capiz</p>
+                        <p class="text-gray-600">Tel No. 036 533834/0921934400</p>
+                        <div class="border-t border-b border-gray-200 my-4 py-2">
+                            <p class="font-semibold">Official Receipt</p>
+                            <p class="text-sm text-gray-500">Receipt #{{ sale_data.sale.id }}</p>
+                            <p class="text-sm text-gray-500">{{ sale_data.date }}</p>
+                            <p class="text-sm text-gray-500">Cashier: {{ sale_data.sale.cashier.get_full_name }}</p>
+                            <p class="text-sm text-gray-500">Order #: {{ sale_data.sale.id|stringformat:"05d" }}</p>
+            </div>
+        </div>
+
+                    <div class="border-b pb-4 mb-4">
+                        <table class="w-full">
+                            <thead class="text-gray-600 text-sm">
+                                <tr>
+                                    <th class="text-left">Item</th>
+                                    <th class="text-right">Qty</th>
+                                    <th class="text-right">Price</th>
+                                    <th class="text-right">Subtotal</th>
+                    </tr>
+                </thead>
+                            <tbody class="text-sm">
+                                {% for item in sale_data.items %}
+                                <tr>
+                                    <td class="text-left">{{ item.product.product_name }}</td>
+                                    <td class="text-right">{{ item.quantity }}</td>
+                                    <td class="text-right">₱{{ item.unit_price_at_sale|floatformat:2 }}</td>
+                                    <td class="text-right">₱{{ item.subtotal|floatformat:2 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+                    <!-- Totals -->
+                    <div class="space-y-2 text-sm mb-6">
+                        <div class="flex justify-between">
+                            <span>Subtotal:</span>
+                            <span>₱{{ sale_data.subtotal|floatformat:2 }}</span>
+                        </div>
+                        
+                        {% if sale_data.sale.discount_value > 0 %}
+                        <div class="flex justify-between text-gray-600">
+                            <span>Discount 
+                                {% if sale_data.sale.discount_type == 'percent' %}
+                                ({{ sale_data.sale.discount_value }}%)
+                                {% endif %}:
+                            </span>
+                            <span>-₱{{ sale_data.discount_amount|floatformat:2 }}</span>
+                        </div>
+                        {% endif %}
+
+                        <div class="flex justify-between text-gray-600">
+                            <span>VAT (12%):</span>
+                            <span>₱{{ sale_data.sale.vat_amount|floatformat:2 }}</span>
+                        </div>
+
+                        <div class="flex justify-between font-bold pt-2 border-t">
+                            <span>Total:</span>
+                            <span>₱{{ sale_data.sale.total_amount|floatformat:2 }}</span>
+                        </div>
+
+                        <div class="flex justify-between">
+                            <span>Amount Paid:</span>
+                            <span>₱{{ sale_data.amount_paid|floatformat:2 }}</span>
+                        </div>
+
+                        <div class="flex justify-between">
+                            <span>Change:</span>
+                            <span>₱{{ sale_data.change_amount|floatformat:2 }}</span>
+    </div>
+</div>
+
+                    <!-- Footer -->
+                    <div class="text-center border-t pt-4">
+                        <p class="text-sm font-semibold mb-1">Order #: {{ sale_data.sale.id|stringformat:"05d" }}</p>
+                        <p class="text-sm text-gray-600 mb-1">Thank you for shopping at</p>
+                        <p class="text-lg font-bold mb-1">TINDAHAN 404!</p>
+                        <p class="text-sm text-gray-600">Please come again!</p>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function printReceipt(receiptId) {
+    const receiptContent = document.getElementById(receiptId).innerHTML;
+    const printWindow = window.open('', '_blank');
+    
+    printWindow.document.write(`
+        <html>
+        <head>
+            <title>Receipt #${receiptId}</title>
+            <style>
+                body { 
+                    font-family: Arial, sans-serif; 
+                    padding: 20px;
+                    max-width: 300px;
+                    margin: 0 auto;
+                }
+                .text-center { text-align: center; }
+                .text-right { text-align: right; }
+                .text-left { text-align: left; }
+                .mb-1 { margin-bottom: 0.25rem; }
+                .mb-4 { margin-bottom: 1rem; }
+                .mb-6 { margin-bottom: 1.5rem; }
+                .mt-1 { margin-top: 0.25rem; }
+                .my-4 { margin-top: 1rem; margin-bottom: 1rem; }
+                .pt-2 { padding-top: 0.5rem; }
+                .pt-4 { padding-top: 1rem; }
+                .pb-4 { padding-bottom: 1rem; }
+                .py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+                .space-y-2 > * + * { margin-top: 0.5rem; }
+                .border-t { border-top: 1px solid #ddd; }
+                .border-b { border-bottom: 1px solid #ddd; }
+                .font-bold { font-weight: bold; }
+                .text-3xl { font-size: 1.875rem; line-height: 2.25rem; }
+                .text-lg { font-size: 1.125rem; line-height: 1.75rem; }
+                .text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+                .tracking-wider { letter-spacing: 0.05em; }
+                .text-gray-500 { color: #666; }
+                .text-gray-600 { color: #444; }
+                table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+                th, td { padding: 0.25rem; }
+                @media print {
+                    body { margin: 0; padding: 10px; }
+                    .no-print { display: none; }
+                }
+            </style>
+        </head>
+        <body>
+            ${receiptContent}
+        </body>
+        </html>
+    `);
+    
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 250);
+}
+</script>
+{% endblock %} 

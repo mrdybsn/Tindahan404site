@@ -1,0 +1,135 @@
+{% extends 'layout/base_cashier.html' %}
+{% load static %}
+
+{% block title %}Analytics{% endblock %}
+
+{% block header %}Analytics Dashboard{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+        <!-- Total Sales Card -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm">Total Sales</p>
+                    <h3 class="text-2xl font-bold text-gray-900">₱{{ total_sales|floatformat:2 }}</h3>
+                </div>
+                <span class="material-icons text-teal-600 text-3xl">payments</span>
+            </div>
+        </div>
+
+        <!-- Transaction Count Card -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm">Total Transactions</p>
+                    <h3 class="text-2xl font-bold text-gray-900">{{ transaction_count }}</h3>
+                </div>
+                <span class="material-icons text-blue-600 text-3xl">receipt_long</span>
+            </div>
+        </div>
+
+        <!-- Average Transaction Card -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-gray-500 text-sm">Average Transaction</p>
+                    <h3 class="text-2xl font-bold text-gray-900">₱{{ avg_transaction|floatformat:2 }}</h3>
+                </div>
+                <span class="material-icons text-green-600 text-3xl">trending_up</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Sales Trend Chart -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Sales Trend</h3>
+            <div class="h-80">
+                <canvas id="salesTrendChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Top Products Chart -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Top Products</h3>
+            <div class="h-80">
+                <canvas id="topProductsChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Sales Trend Chart
+    const salesTrendCtx = document.getElementById('salesTrendChart').getContext('2d');
+    new Chart(salesTrendCtx, {
+        type: 'line',
+        data: {
+            labels: {{ sales_dates|safe }},
+            datasets: [{
+                label: 'Daily Sales',
+                data: {{ sales_amounts|safe }},
+                borderColor: 'rgb(13, 148, 136)',
+                tension: 0.1,
+                fill: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return '₱' + value;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Top Products Chart
+    const topProductsCtx = document.getElementById('topProductsChart').getContext('2d');
+    new Chart(topProductsCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ top_products_labels|safe }},
+            datasets: [{
+                label: 'Units Sold',
+                data: {{ top_products_data|safe }},
+                backgroundColor: 'rgba(13, 148, 136, 0.5)',
+                borderColor: 'rgb(13, 148, 136)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %} 

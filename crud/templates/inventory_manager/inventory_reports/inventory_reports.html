@@ -1,0 +1,230 @@
+{% extends 'layout/base_manager.html' %}
+{% load static %}
+
+{% block title %}Inventory Reports{% endblock %}
+
+{% block header %}Inventory Reports{% endblock %}
+
+{% block content %}
+<!-- Overview Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+    <!-- Total Products -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-600">Total Products</p>
+                <h3 class="text-2xl font-bold text-gray-900">{{ total_products }}</h3>
+            </div>
+            <span class="material-icons text-teal-500 text-3xl">inventory_2</span>
+        </div>
+    </div>
+
+    <!-- Total Stock Value -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-600">Total Stock Value</p>
+                <h3 class="text-2xl font-bold text-gray-900">₱{{ total_stock_value|floatformat:2 }}</h3>
+            </div>
+            <span class="material-icons text-teal-500 text-3xl">payments</span>
+        </div>
+    </div>
+
+    <!-- Low Stock Items -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-600">Low Stock Items</p>
+                <h3 class="text-2xl font-bold text-gray-900">{{ low_stock_count }}</h3>
+            </div>
+            <span class="material-icons text-orange-500 text-3xl">warning</span>
+        </div>
+    </div>
+
+    <!-- Out of Stock -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex items-center justify-between">
+            <div>
+                <p class="text-sm font-medium text-gray-600">Out of Stock</p>
+                <h3 class="text-2xl font-bold text-gray-900">{{ out_of_stock_count }}</h3>
+            </div>
+            <span class="material-icons text-red-500 text-3xl">error</span>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Stock Status Chart -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Stock Status Distribution</h2>
+        <div class="h-64">
+            <canvas id="stockStatusChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Category Value Chart -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Stock Value by Category</h2>
+        <div class="h-64">
+            <canvas id="categoryValueChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Low Stock Products Table -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <div class="flex justify-between items-center mb-4">
+            <h2 class="text-lg font-semibold text-gray-900">Low Stock Products</h2>
+            <a href="{% url 'crud:inventory_products' %}?filter=low_stock" class="text-teal-600 hover:text-teal-700 text-sm">View All</a>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Stock</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Min. Level</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for product in low_stock_products %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-gray-900">{{ product.product_name }}</div>
+                            <div class="text-xs text-gray-500">SKU: {{ product.product_id }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-gray-900">{{ product.category.category_name }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            {% if product.stock_quantity == 0 %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                                Out of Stock
+                            </span>
+                            {% else %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-orange-100 text-orange-800">
+                                {{ product.stock_quantity }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ product.minimum_stock_level }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-4 text-center text-gray-500">
+                            No low stock products found
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Category Breakdown Table -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-lg font-semibold text-gray-900 mb-4">Category Breakdown</h2>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Products</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Value</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avg. Stock</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for category in categories %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-gray-900">{{ category.category_name }}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ category.products.count }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ₱{{ category.total_value|floatformat:2 }}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {{ category.avg_stock|default:0|floatformat:0 }}
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-4 text-center text-gray-500">
+                            No categories found
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Stock Status Chart
+const stockStatusCtx = document.getElementById('stockStatusChart').getContext('2d');
+new Chart(stockStatusCtx, {
+    type: 'doughnut',
+    data: {
+        labels: ['Adequate Stock', 'Low Stock', 'Out of Stock'],
+        datasets: [{
+            data: [{{ adequate_stock_count }}, {{ low_stock_count }}, {{ out_of_stock_count }}],
+            backgroundColor: ['#10B981', '#F59E0B', '#EF4444'],
+            borderWidth: 0
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                position: 'bottom'
+            }
+        }
+    }
+});
+
+// Category Value Chart
+const categoryValueCtx = document.getElementById('categoryValueChart').getContext('2d');
+new Chart(categoryValueCtx, {
+    type: 'bar',
+    data: {
+        labels: {{ category_names|safe }},
+        datasets: [{
+            label: 'Stock Value',
+            data: {{ category_values|safe }},
+            backgroundColor: '#10B981',
+            borderWidth: 0
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+            y: {
+                beginAtZero: true,
+                ticks: {
+                    callback: function(value) {
+                        return '₱' + value.toLocaleString();
+                    }
+                }
+            }
+        },
+        plugins: {
+            legend: {
+                display: false
+            }
+        }
+    }
+});
+</script>
+{% endblock %} 

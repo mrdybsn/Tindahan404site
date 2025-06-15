@@ -1,0 +1,26 @@
+{% extends 'layout/base_admin.html' %}
+
+{% block title %}Delete Category{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-center min-h-screen bg-gray-50 px-4">
+    <div class="bg-white rounded-xl shadow-lg p-8 w-full max-w-md text-center">
+        <div class="mb-4">
+            <span class="material-icons text-red-600 text-5xl">warning</span>
+        </div>
+        <h2 class="text-2xl font-semibold text-gray-800 mb-2">Delete Category</h2>
+        <p class="text-gray-600 mb-6">
+            Are you sure you want to delete the category 
+            <span class="font-medium text-gray-900">"{{ category.category_name }}"</span>?
+            This action cannot be undone.
+        </p>
+
+        <form method="POST" action="{% url 'crud:delete_category' category.id %}" class="flex justify-center gap-4">
+            {% csrf_token %}
+            <a href="{% url 'crud:admin_categories' %}"
+            class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition">Cancel</a>
+            <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">Confirm Delete</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

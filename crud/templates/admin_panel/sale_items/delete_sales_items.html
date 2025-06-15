@@ -1,0 +1,33 @@
+{% extends 'layout/base_admin.html' %}
+{% block title %}Delete Sale Item{% endblock %}
+
+{% block content %}
+<div class="flex justify-center items-center min-h-[60vh]">
+    <div class="bg-white shadow rounded-lg p-8 max-w-lg w-full">
+        <div class="text-center">
+            <span class="material-icons text-red-500 text-5xl mb-4">warning</span>
+            <h1 class="text-xl font-semibold mb-2">Delete Sale Item</h1>
+            <p class="text-gray-600">Are you sure you want to delete this sale item?</p>
+        </div>
+
+        <div class="mt-6">
+            <ul class="text-sm text-gray-700 space-y-1">
+                <li><strong>Product:</strong> {{ sale_item.product.product_name }}</li>
+                <li><strong>Quantity:</strong> {{ sale_item.quantity }}</li>
+                <li><strong>Unit Price:</strong> ₱ {{ sale_item.unit_price_at_sale }}</li>
+                <li><strong>Subtotal:</strong> ₱ {{ sale_item.subtotal }}</li>
+            </ul>
+        </div>
+
+        <form method="POST" class="mt-6 flex justify-center gap-3">
+            {% csrf_token %}
+            <a href="{% url 'crud:sale_items' %}" class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300">
+                Cancel
+            </a>
+            <button type="submit" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                Confirm Delete
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}
