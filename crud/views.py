@@ -5,7 +5,7 @@ from django.contrib import messages
 from django.urls import reverse
 from django.http import HttpResponse
 from django.contrib.auth.models import User, Group, Permission
-from django.db.models import Sum, Count, F, Q, Prefetch, Case, When, Value, CharField, IntegerField
+from django.db.models import Sum, Count, F, Q, Prefetch, Case, When, Value, CharField, IntegerField, Avg
 from django.db.models.functions import TruncDate
 from datetime import datetime, timedelta
 import json
@@ -21,6 +21,8 @@ from django.db import transaction
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError
 from functools import wraps
+from django.db import connection
+from django.core.serializers.json import DjangoJSONEncoder
 
 # Create your views here.
 
@@ -120,7 +122,7 @@ def user_login(request):
     return render(request, 'layout/user_login.html', context)
 
 def user_logout(request):
-    was_staff = request.user.is_staff if request.user.is_authenticated else False
+    was_staff = request.user.is_authenticated and request.user.role == 'admin'
     
     request.session.flush()
     
@@ -134,337 +136,193 @@ def user_logout(request):
         return redirect('crud:user_login')
     
 #--Admin Dashboard--#
-
+@login_required
 def admin_dashboard(request):
     if not request.user.role == 'admin':
         messages.error(request, 'You do not have permission to access this page.')
         return redirect('crud:user_login')
 
+    # Get date ranges for comparisons
     today = timezone.now()
-    last_month = today - timezone.timedelta(days=30)
-    two_months_ago = last_month - timezone.timedelta(days=30)
+    start_of_week = today - timedelta(days=today.weekday())
+    start_of_prev_week = start_of_week - timedelta(days=7)
+    thirty_days_ago = today - timedelta(days=30)
 
-    # Calculate sales metrics
-    current_month_sales = Sale.objects.filter(transaction_date__gte=last_month).aggregate(
-        total=Sum('total_amount'))['total'] or 0
-    previous_month_sales = Sale.objects.filter(
-        transaction_date__gte=two_months_ago,
-        transaction_date__lt=last_month
-    ).aggregate(total=Sum('total_amount'))['total'] or 0
+    # Weekly Sales Metrics
+    current_week_sales = Sale.objects.filter(
+        transaction_date__gte=start_of_week
+    ).aggregate(
+        total=Sum('total_amount'),
+        count=Count('id')
+    )
+    
+    previous_week_sales = Sale.objects.filter(
+        transaction_date__range=[start_of_prev_week, start_of_week]
+    ).aggregate(
+        total=Sum('total_amount'),
+        count=Count('id')
+    )
 
-    sales_change = ((current_month_sales - previous_month_sales) / previous_month_sales * 100) if previous_month_sales > 0 else 0
+    # Calculate week-over-week changes
+    current_week_total = current_week_sales['total'] or 0
+    previous_week_total = previous_week_sales['total'] or 0
+    current_week_count = current_week_sales['count'] or 0
+    previous_week_count = previous_week_sales['count'] or 0
 
-    # Calculate transaction metrics
-    current_month_transactions = Sale.objects.filter(transaction_date__gte=last_month).count()
-    previous_month_transactions = Sale.objects.filter(
-        transaction_date__gte=two_months_ago,
-        transaction_date__lt=last_month
+    # Calculate percentage changes and store both the sign and absolute value
+    if previous_week_total > 0:
+        sales_change = ((current_week_total - previous_week_total) / previous_week_total * 100)
+        sales_wow_change = abs(sales_change)
+        sales_wow_direction = 'up' if sales_change >= 0 else 'down'
+    else:
+        sales_wow_change = 0
+        sales_wow_direction = 'up'
+
+    if previous_week_count > 0:
+        trans_change = ((current_week_count - previous_week_count) / previous_week_count * 100)
+        transactions_wow_change = abs(trans_change)
+        transactions_wow_direction = 'up' if trans_change >= 0 else 'down'
+    else:
+        transactions_wow_change = 0
+        transactions_wow_direction = 'up'
+
+    # Product Status
+    low_stock_count = Product.objects.filter(
+        stock__gt=0,
+        stock__lte=F('minimum_stock_level')
     ).count()
 
-    transaction_change = ((current_month_transactions - previous_month_transactions) / previous_month_transactions * 100) if previous_month_transactions > 0 else 0
+    # Stock Movements in last 24 hours
+    stock_movement_count = StockAdjustment.objects.filter(
+        date__gte=today - timedelta(days=1)
+    ).count()
 
-    # Get product metrics
-    total_products = Product.objects.count()
-    out_of_stock = Product.objects.filter(stock=0).count()
-    low_stock = Product.objects.filter(stock__gt=0, stock__lte=F('minimum_stock_level')).count()
-    in_stock = total_products - out_of_stock - low_stock
+    # Daily Sales Data (Last 30 days)
+    daily_sales = Sale.objects.filter(
+        transaction_date__gte=thirty_days_ago
+    ).annotate(
+        date=TruncDate('transaction_date')
+    ).values('date').annotate(
+        total=Sum('total_amount')
+    ).order_by('date')
 
-    # Get user metrics
-    total_users = User.objects.count()
-    active_users = User.objects.filter(last_login__date=today.date()).count()
+    daily_sales_labels = [d['date'].strftime('%Y-%m-%d') for d in daily_sales]
+    daily_sales_data = [float(d['total']) for d in daily_sales]
 
-    # Get sales data for chart
-    sales_data = []
-    sales_labels = []
-    
-    # Get the start of today
-    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    
-    # Get sales for the last 7 days
-    for i in range(6, -1, -1):
-        date_start = today_start - timezone.timedelta(days=i)
-        date_end = date_start + timezone.timedelta(days=1)
-        
-        daily_sales = Sale.objects.filter(
-            transaction_date__gte=date_start,
-            transaction_date__lt=date_end
-        ).aggregate(
-            total=Sum('total_amount')
-        )['total'] or Decimal('0.00')
-
-        sales_data.append(float(daily_sales))
-        sales_labels.append(date_start.strftime('%b %d'))
-
-    # Get top selling products for the last 30 days
-    last_30_days = today_start - timezone.timedelta(days=30)
+    # Top Products
     top_products = SaleItem.objects.filter(
-        sale__transaction_date__gte=last_30_days
+        sale__transaction_date__gte=thirty_days_ago
     ).values(
         'product__product_name'
     ).annotate(
-        total_quantity=Sum('quantity')
-    ).order_by('-total_quantity')[:5]
+        revenue=Sum(F('quantity') * F('unit_price_at_sale'))
+    ).order_by('-revenue')[:5]
 
-    product_labels = [p['product__product_name'] for p in top_products]
-    product_data = [float(p['total_quantity']) for p in top_products]
+    top_products_labels = [p['product__product_name'] for p in top_products]
+    top_products_revenue = [float(p['revenue']) for p in top_products]
 
-    # Get category distribution
-    category_stats = Product.objects.values(
-        'category__category_name'
+    # Category Performance
+    category_sales = SaleItem.objects.filter(
+        sale__transaction_date__gte=thirty_days_ago,
+        product__category__isnull=False
+    ).values(
+        'product__category__category_name'
     ).annotate(
-        product_count=Count('product_id')
-    ).order_by('-product_count')
+        total=Sum(F('quantity') * F('unit_price_at_sale'))
+    ).order_by('-total')
 
-    category_labels = [stat['category__category_name'] or 'Uncategorized' for stat in category_stats]
-    category_data = [stat['product_count'] for stat in category_stats]
+    category_labels = [c['product__category__category_name'] for c in category_sales]
+    category_data = [float(c['total']) for c in category_sales]
 
-    # Get stock status distribution
-    stock_status_labels = ['In Stock', 'Low Stock', 'Out of Stock']
-    stock_status_data = [in_stock, low_stock, out_of_stock]
+    # Stock Level Status
+    stock_levels = Product.objects.annotate(
+        status=Case(
+            When(stock=0, then=Value('Out of Stock')),
+            When(stock__lte=F('minimum_stock_level'), then=Value('Low Stock')),
+            default=Value('In Stock'),
+            output_field=CharField(),
+        )
+    ).values('product_name', 'stock', 'status').order_by('-stock')[:10]
 
-    # Get user activity data (last 7 days)
-    user_activity_labels = []
-    user_activity_data = []
-    
-    for i in range(6, -1, -1):
-        date = today_start - timezone.timedelta(days=i)
-        active_count = User.objects.filter(last_login__date=date.date()).count()
-        user_activity_data.append(active_count)
-        user_activity_labels.append(date.strftime('%b %d'))
+    stock_level_labels = [p['product_name'] for p in stock_levels]
+    stock_level_data = [p['stock'] for p in stock_levels]
+    stock_level_colors = [
+        'rgba(239, 68, 68, 0.8)' if p['status'] == 'Out of Stock'
+        else 'rgba(245, 158, 11, 0.8)' if p['status'] == 'Low Stock'
+        else 'rgba(16, 185, 129, 0.8)'
+        for p in stock_levels
+    ]
+    stock_level_borders = [
+        'rgb(239, 68, 68)' if p['status'] == 'Out of Stock'
+        else 'rgb(245, 158, 11)' if p['status'] == 'Low Stock'
+        else 'rgb(16, 185, 129)'
+        for p in stock_levels
+    ]
 
-    # Get recent activities
+    # Recent Activities
     recent_activities = []
-
-    # Add recent sales
+    
+    # Get recent sales
     recent_sales = Sale.objects.select_related('cashier').order_by('-transaction_date')[:5]
     for sale in recent_sales:
         recent_activities.append({
-            'icon': 'shopping_cart',
-            'description': f'New sale of ₱{sale.total_amount:.2f} by {sale.cashier.get_full_name()}',
-            'timestamp': timezone.localtime(sale.transaction_date).strftime('%Y-%m-%d %H:%M:%S')
+            'date': sale.transaction_date.strftime('%Y-%m-%d %H:%M'),
+            'type': 'sale',
+            'details': f'Sale by {sale.cashier.username}',
+            'amount': sale.total_amount
         })
 
-    # Add recent stock adjustments
-    recent_adjustments = StockAdjustment.objects.select_related('product', 'adjusted_by').order_by('-date')[:5]
-    for adjustment in recent_adjustments:
+    # Get recent stock adjustments
+    recent_adjustments = StockAdjustment.objects.select_related(
+        'product', 'adjusted_by'
+    ).order_by('-date')[:5]
+    for adj in recent_adjustments:
         recent_activities.append({
-            'icon': 'inventory',
-            'description': f'Stock adjusted for {adjustment.product.product_name} ({adjustment.quantity_change:+d}) by {adjustment.adjusted_by.get_full_name() if adjustment.adjusted_by else "System"}',
-            'timestamp': timezone.localtime(adjustment.date).strftime('%Y-%m-%d %H:%M:%S')
+            'date': adj.date.strftime('%Y-%m-%d %H:%M'),
+            'type': 'adjustment',
+            'details': f'{adj.adjustment_type} for {adj.product.product_name}',
+            'amount': adj.quantity
         })
 
-    # Add recent user logins
-    recent_logins = User.objects.filter(
-        last_login__isnull=False
-    ).order_by('-last_login')[:5]
-    for user in recent_logins:
-        recent_activities.append({
-            'icon': 'person',
-            'description': f'{user.get_full_name()} logged in',
-            'timestamp': timezone.localtime(user.last_login).strftime('%Y-%m-%d %H:%M:%S')
-        })
-
-    # Sort activities by timestamp and limit to 5
-    recent_activities.sort(key=lambda x: x['timestamp'], reverse=True)
-    recent_activities = recent_activities[:5]
-
-    # Convert Decimal to float for JSON serialization
-    total_sales = float(current_month_sales)
-    sales_change = float(sales_change)
-
-    # Prepare chart data
-    chart_data = {
-        'sales_labels': json.dumps(sales_labels),
-        'sales_data': json.dumps(sales_data),
-        'product_labels': json.dumps(product_labels),
-        'product_data': json.dumps(product_data),
-        'category_labels': json.dumps(category_labels),
-        'category_data': json.dumps(category_data),
-        'stock_status_labels': json.dumps(stock_status_labels),
-        'stock_status_data': json.dumps(stock_status_data),
-        'user_activity_labels': json.dumps(user_activity_labels),
-        'user_activity_data': json.dumps(user_activity_data)
-    }
+    # Sort combined activities by date
+    recent_activities.sort(key=lambda x: x['date'], reverse=True)
+    recent_activities = recent_activities[:10]  # Keep only top 10
 
     context = {
-        'total_sales': total_sales,
-        'sales_change': sales_change,
-        'total_transactions': current_month_transactions,
-        'transaction_change': transaction_change,
-        'total_products': total_products,
-        'out_of_stock': out_of_stock,
-        'total_users': total_users,
-        'active_users': active_users,
+        'total_sales': current_week_total,
+        'sales_wow_change': sales_wow_change,
+        'sales_wow_direction': sales_wow_direction,
+        'transaction_count': current_week_count,
+        'transactions_wow_change': transactions_wow_change,
+        'transactions_wow_direction': transactions_wow_direction,
+        'low_stock_count': low_stock_count,
+        'stock_movement_count': stock_movement_count,
+        'daily_sales_labels': daily_sales_labels,
+        'daily_sales_data': daily_sales_data,
+        'top_products_labels': top_products_labels,
+        'top_products_revenue': top_products_revenue,
+        'category_labels': category_labels,
+        'category_data': category_data,
+        'stock_level_labels': stock_level_labels,
+        'stock_level_data': stock_level_data,
+        'stock_level_colors': stock_level_colors,
+        'stock_level_borders': stock_level_borders,
         'recent_activities': recent_activities,
-        **chart_data
     }
 
     return render(request, 'admin_panel/dashboard/admin_dashboard.html', context)
 
-def admin_dashboard_data(request):
-    if not request.user.role == 'admin':
-        return JsonResponse({'error': 'Unauthorized'}, status=403)
-
-    today = timezone.now()
-    last_month = today - timezone.timedelta(days=30)
-    two_months_ago = last_month - timezone.timedelta(days=30)
-
-    # Calculate sales metrics
-    current_month_sales = Sale.objects.filter(transaction_date__gte=last_month).aggregate(
-        total=Sum('total_amount'))['total'] or 0
-    previous_month_sales = Sale.objects.filter(
-        transaction_date__gte=two_months_ago,
-        transaction_date__lt=last_month
-    ).aggregate(total=Sum('total_amount'))['total'] or 0
-
-    sales_change = ((current_month_sales - previous_month_sales) / previous_month_sales * 100) if previous_month_sales > 0 else 0
-
-    # Calculate transaction metrics
-    current_month_transactions = Sale.objects.filter(transaction_date__gte=last_month).count()
-    previous_month_transactions = Sale.objects.filter(
-        transaction_date__gte=two_months_ago,
-        transaction_date__lt=last_month
-    ).count()
-
-    transaction_change = ((current_month_transactions - previous_month_transactions) / previous_month_transactions * 100) if previous_month_transactions > 0 else 0
-
-    # Get product metrics
-    total_products = Product.objects.count()
-    out_of_stock = Product.objects.filter(stock=0).count()
-    low_stock = Product.objects.filter(stock__gt=0, stock__lte=F('minimum_stock_level')).count()
-    in_stock = total_products - out_of_stock - low_stock
-
-    # Get user metrics
-    total_users = User.objects.count()
-    active_users = User.objects.filter(last_login__date=today.date()).count()
-
-    # Get sales data for chart
-    sales_data = []
-    sales_labels = []
-    
-    # Get the start of today
-    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    
-    # Get sales for the last 7 days
-    for i in range(6, -1, -1):
-        date_start = today_start - timezone.timedelta(days=i)
-        date_end = date_start + timezone.timedelta(days=1)
-        
-        daily_sales = Sale.objects.filter(
-            transaction_date__gte=date_start,
-            transaction_date__lt=date_end
-        ).aggregate(
-            total=Sum('total_amount')
-        )['total'] or Decimal('0.00')
-
-        sales_data.append(float(daily_sales))
-        sales_labels.append(date_start.strftime('%b %d'))
-
-    # Get top selling products for the last 30 days
-    last_30_days = today_start - timezone.timedelta(days=30)
-    top_products = SaleItem.objects.filter(
-        sale__transaction_date__gte=last_30_days
-    ).values(
-        'product__product_name'
-    ).annotate(
-        total_quantity=Sum('quantity')
-    ).order_by('-total_quantity')[:5]
-
-    product_labels = [p['product__product_name'] for p in top_products]
-    product_data = [float(p['total_quantity']) for p in top_products]
-
-    # Get category distribution
-    category_stats = Product.objects.values(
-        'category__category_name'
-    ).annotate(
-        product_count=Count('product_id')
-    ).order_by('-product_count')
-
-    category_labels = [stat['category__category_name'] or 'Uncategorized' for stat in category_stats]
-    category_data = [stat['product_count'] for stat in category_stats]
-
-    # Get stock status distribution
-    stock_status_labels = ['In Stock', 'Low Stock', 'Out of Stock']
-    stock_status_data = [in_stock, low_stock, out_of_stock]
-
-    # Get user activity data (last 7 days)
-    user_activity_labels = []
-    user_activity_data = []
-    
-    for i in range(6, -1, -1):
-        date = today_start - timezone.timedelta(days=i)
-        active_count = User.objects.filter(last_login__date=date.date()).count()
-        user_activity_data.append(active_count)
-        user_activity_labels.append(date.strftime('%b %d'))
-
-    # Get recent activities
-    recent_activities = []
-
-    # Add recent sales
-    recent_sales = Sale.objects.select_related('cashier').order_by('-transaction_date')[:5]
-    for sale in recent_sales:
-        recent_activities.append({
-            'icon': 'shopping_cart',
-            'description': f'New sale of ₱{sale.total_amount:.2f} by {sale.cashier.get_full_name()}',
-            'timestamp': timezone.localtime(sale.transaction_date).strftime('%Y-%m-%d %H:%M:%S')
-        })
-
-    # Add recent stock adjustments
-    recent_adjustments = StockAdjustment.objects.select_related('product', 'adjusted_by').order_by('-date')[:5]
-    for adjustment in recent_adjustments:
-        recent_activities.append({
-            'icon': 'inventory',
-            'description': f'Stock adjusted for {adjustment.product.product_name} ({adjustment.quantity_change:+d}) by {adjustment.adjusted_by.get_full_name() if adjustment.adjusted_by else "System"}',
-            'timestamp': timezone.localtime(adjustment.date).strftime('%Y-%m-%d %H:%M:%S')
-        })
-
-    # Add recent user logins
-    recent_logins = User.objects.filter(
-        last_login__isnull=False
-    ).order_by('-last_login')[:5]
-    for user in recent_logins:
-        recent_activities.append({
-            'icon': 'person',
-            'description': f'{user.get_full_name()} logged in',
-            'timestamp': timezone.localtime(user.last_login).strftime('%Y-%m-%d %H:%M:%S')
-        })
-
-    # Sort activities by timestamp and limit to 5
-    recent_activities.sort(key=lambda x: x['timestamp'], reverse=True)
-    recent_activities = recent_activities[:5]
-
-    # Convert Decimal to float for JSON serialization
-    total_sales = float(current_month_sales)
-    sales_change = float(sales_change)
-
-    return JsonResponse({
-        'total_sales': total_sales,
-        'sales_change': sales_change,
-        'total_transactions': current_month_transactions,
-        'transaction_change': transaction_change,
-        'total_products': total_products,
-        'out_of_stock': out_of_stock,
-        'total_users': total_users,
-        'active_users': active_users,
-        'sales_labels': sales_labels,
-        'sales_data': sales_data,
-        'product_labels': product_labels,
-        'product_data': product_data,
-        'category_labels': category_labels,
-        'category_data': category_data,
-        'stock_status_labels': stock_status_labels,
-        'stock_status_data': stock_status_data,
-        'user_activity_labels': user_activity_labels,
-        'user_activity_data': user_activity_data,
-        'recent_activities': recent_activities
-    })
 
 #--User Management--#
 
+@login_required
+@admin_required
 def admin_users(request):
     users = User.objects.all()
     return render(request, 'admin_panel/users/admin_users.html', {'users': users})
 
+@login_required
+@admin_required
 def add_user(request):
     if request.method == 'POST':
         try:
@@ -506,8 +364,9 @@ def add_user(request):
 
     return render(request, 'admin_panel/users/add_user.html')
 
+@login_required
+@admin_required
 def edit_user(request, user_id):
-    from .models import User
     try:
         user = User.objects.get(id=user_id)
     except User.DoesNotExist:
@@ -540,20 +399,30 @@ def edit_user(request, user_id):
 
     return render(request, 'admin_panel/users/edit_user.html', {'user': user})
 
+@login_required
+@admin_required
 def delete_user(request, user_id):
     if request.method != 'POST':
-        messages.error(request, 'Invalid request method.')
+        messages.error(request, 'Invalid request method. This action requires a POST request.')
         return redirect('crud:admin_users')
         
     try:
         user = User.objects.get(pk=user_id)
+        
+        # Prevent self-deletion
+        if request.user.id == user.id:
+            messages.error(request, 'You cannot delete your own account.')
+            return redirect('crud:admin_users')
+            
         username = user.username
         user.delete()
-        messages.success(request, f'User {username} was deleted successfully.')
+        messages.success(request, f'User "{username}" was deleted successfully.')
+        
     except User.DoesNotExist:
         messages.error(request, 'User not found.')
     except Exception as e:
         messages.error(request, f'Error deleting user: {str(e)}')
+        
     return redirect('crud:admin_users')
 
 #--Product Management--#
@@ -704,46 +573,44 @@ def confirm_delete_product(request, product_id):
 
 #--Categories Management--#
 
+@login_required
+@admin_required
 def admin_categories(request):
     categories = Category.objects.all()
     return render(request, 'admin_panel/categories/admin_categories.html', {'categories': categories})
 
-def add_category(request):
-    if not request.user.role == 'inventory_manager':
-        messages.error(request, 'You do not have permission to access this page.')
-        return redirect('crud:user_login')
-        
+@login_required
+@admin_required
+def admin_add_category(request):
     if request.method == 'POST':
         try:
             category_name = request.POST.get('category_name')
             category_description = request.POST.get('description')
             if not category_name:
                 messages.error(request, 'Category name is required.')
-                return redirect('crud:category_list')
+                return redirect('crud:admin_categories')
                 
             category = Category.objects.create(
                 category_name=category_name,
                 category_description=category_description
             )
             messages.success(request, f'Category "{category_name}" was created successfully.')
-            return redirect('crud:category_list')
+            return redirect('crud:admin_categories')
         except IntegrityError:
             messages.error(request, 'A category with this name already exists.')
         except Exception as e:
             messages.error(request, f'Error creating category: {str(e)}')
 
-    return redirect('crud:category_list')
+    return render(request, 'admin_panel/categories/add_category.html')
 
-def edit_category(request, category_id):
-    if not request.user.role == 'inventory_manager':
-        messages.error(request, 'You do not have permission to access this page.')
-        return redirect('crud:user_login')
-        
+@login_required
+@admin_required
+def admin_edit_category(request, category_id):
     try:
         category = Category.objects.get(pk=category_id)
     except Category.DoesNotExist:
         messages.error(request, 'Category not found.')
-        return redirect('crud:category_list')
+        return redirect('crud:admin_categories')
 
     if request.method == 'POST':
         try:
@@ -751,19 +618,44 @@ def edit_category(request, category_id):
             category_description = request.POST.get('description')
             if not category_name:
                 messages.error(request, 'Category name is required.')
-                return redirect('crud:category_list')
+                return redirect('crud:admin_categories')
                 
             category.category_name = category_name
             category.category_description = category_description
             category.save()
             messages.success(request, f'Category "{category_name}" was updated successfully.')
-            return redirect('crud:category_list')
+            return redirect('crud:admin_categories')
         except IntegrityError:
             messages.error(request, 'A category with this name already exists.')
         except Exception as e:
             messages.error(request, f'Error updating category: {str(e)}')
 
-    return redirect('crud:category_list')
+    return render(request, 'admin_panel/categories/edit_category.html', {'category': category})
+
+@login_required
+@admin_required
+def admin_delete_category(request, category_id):
+    if request.method != 'POST':
+        messages.error(request, 'Invalid request method.')
+        return redirect('crud:admin_categories')
+
+    try:
+        category = Category.objects.get(pk=category_id)
+        category_name = category.category_name
+        
+        # Check if category has products
+        if category.products.exists():
+            messages.error(request, f'Cannot delete category "{category_name}" because it has associated products.')
+            return redirect('crud:admin_categories')
+            
+        category.delete()
+        messages.success(request, f'Category "{category_name}" was deleted successfully.')
+    except Category.DoesNotExist:
+        messages.error(request, 'Category not found.')
+    except Exception as e:
+        messages.error(request, f'Error deleting category: {str(e)}')
+
+    return redirect('crud:admin_categories')
 
 def confirm_delete_category(request, category_id):
     category = get_object_or_404(Category, pk=category_id)
@@ -772,7 +664,7 @@ def confirm_delete_category(request, category_id):
 def delete_category(request, category_id):
     if request.method != 'POST':
         messages.error(request, 'Invalid request method.')
-        return redirect('crud:admin_categories')
+        return redirect('crud:category_list')
 
     try:
         category = Category.objects.get(pk=category_id)
@@ -784,7 +676,7 @@ def delete_category(request, category_id):
     except Exception as e:
         messages.error(request, f'Error deleting category: {str(e)}')
 
-    return redirect('crud:admin_categories')
+    return redirect('crud:category_list')
 
 
 #--Sales Management--#
@@ -1020,7 +912,12 @@ def admin_add_purchase_order(request):
         'products': Product.objects.filter(is_active=True)
     })
 
+@login_required
 def edit_purchase_orders(request, purchase_id):
+    if not request.user.role == 'inventory_manager':
+        messages.error(request, 'You do not have permission to access this page.')
+        return redirect('crud:user_login')
+        
     from .models import Supplier, User, Product, PurchaseItem
     from decimal import Decimal
     
@@ -1028,7 +925,7 @@ def edit_purchase_orders(request, purchase_id):
         purchase = Purchase.objects.get(pk=purchase_id)
     except Purchase.DoesNotExist:
         messages.error(request, 'Purchase order not found.')
-        return redirect('crud:admin_purchase_orders')
+        return redirect('crud:purchase_orders')
 
     if request.method == 'POST':
         try:
@@ -1070,30 +967,35 @@ def edit_purchase_orders(request, purchase_id):
                     )
 
             messages.success(request, f'Purchase order #{purchase.id} was updated successfully.')
-            return redirect('crud:admin_purchase_orders')
+            return redirect('crud:purchase_orders')
 
         except Exception as e:
             messages.error(request, f'Error updating purchase order: {str(e)}')
 
-    return render(request, 'admin_panel/purchase_orders/edit_purchase_orders.html', {
+    return render(request, 'inventory_manager/purchase_order/edit_purchase_order.html', {
         'purchase': purchase,
         'suppliers': Supplier.objects.all(),
         'users': User.objects.all(),
         'products': Product.objects.filter(is_active=True)
     })
 
+@login_required
 def cancel_purchase_order(request, purchase_id):
+    if not request.user.role == 'inventory_manager':
+        messages.error(request, 'You do not have permission to access this page.')
+        return redirect('crud:user_login')
+        
     purchase_order = get_object_or_404(Purchase, pk=purchase_id)
     if request.method == 'POST':
         purchase_order.status = 'cancelled'
         purchase_order.save()
         messages.info(request, f"Purchase Order #{purchase_id} has been cancelled.")
-        return redirect('crud:admin_purchase_orders')
+        return redirect('crud:purchase_orders')
     
     context = {
         'purchase_order': purchase_order
     }
-    return render(request, 'admin_panel/purchase_orders/cancel_purchase_order.html', context)
+    return render(request, 'inventory_manager/purchase_order/cancel_purchase_order.html', context)
 
 #--Purchase Items--#
 def admin_purchase_items(request):
@@ -1138,39 +1040,41 @@ def add_purchase_item(request):
     })
 
 def edit_purchase_item(request, purchase_item_id):
+    if not request.user.role == 'admin':
+        messages.error(request, 'You do not have permission to access this page.')
+        return redirect('crud:user_login')
+
     try:
-        from .models import Purchase, Product
-        try:
-            purchase_item = PurchaseItem.objects.get(pk=purchase_item_id)
-        except PurchaseItem.DoesNotExist:
-            messages.error(request, 'Purchase item not found.')
-            return redirect('crud:admin_purchase_items')
-
-        if request.method == 'POST':
-            try:
-                # Get form data
-                purchase_item.purchase_id = request.POST.get('purchase')
-                purchase_item.product_id = request.POST.get('product')
-                purchase_item.quantity = request.POST.get('quantity')
-                purchase_item.unit_cost_at_purchase = request.POST.get('unit_cost')
-                purchase_item.received_quantity = request.POST.get('received_quantity')
-                purchase_item.subtotal_cost = float(purchase_item.quantity) * float(purchase_item.unit_cost_at_purchase)
-
-                purchase_item.save()
-                messages.success(request, 'Purchase item was updated successfully.')
-                return redirect('crud:admin_purchase_items')
-
-            except Exception as e:
-                messages.error(request, f'Error updating purchase item: {str(e)}')
-
-        return render(request, 'admin/purchase_items/edit_purchase_item.html', {
-            'purchase_item': purchase_item,
-            'purchases': Purchase.objects.all(),
-            'products': Product.objects.filter(is_active=True)
-        })
+        purchase_item = PurchaseItem.objects.get(pk=purchase_item_id)
+    except PurchaseItem.DoesNotExist:
+        messages.error(request, 'Purchase item not found.')
+        return redirect('crud:admin_purchase_items')
     except Exception as e:
         messages.error(request, f'Error: {str(e)}')
         return redirect('crud:admin_purchase_items')
+
+    if request.method == 'POST':
+        try:
+            # Get form data
+            purchase_item.purchase_id = request.POST.get('purchase')
+            purchase_item.product_id = request.POST.get('product')
+            purchase_item.quantity = request.POST.get('quantity')
+            purchase_item.unit_cost_at_purchase = request.POST.get('unit_cost')
+            purchase_item.received_quantity = request.POST.get('received_quantity')
+            purchase_item.subtotal_cost = float(purchase_item.quantity) * float(purchase_item.unit_cost_at_purchase)
+
+            purchase_item.save()
+            messages.success(request, 'Purchase item was updated successfully.')
+            return redirect('crud:admin_purchase_items')
+
+        except Exception as e:
+            messages.error(request, f'Error updating purchase item: {str(e)}')
+
+    return render(request, 'admin/purchase_items/edit_purchase_item.html', {
+        'purchase_item': purchase_item,
+        'purchases': Purchase.objects.all(),
+        'products': Product.objects.filter(is_active=True)
+    })
 
 def delete_purchase_item(request, purchase_item_id):
     try:
@@ -1292,81 +1196,89 @@ def delete_supplier(request, supplier_id):
 #--Reports--#
 @login_required
 def admin_reports(request):
-    if not request.user.role == 'admin':
-        messages.error(request, 'You do not have permission to access this page.')
-        return redirect('crud:admin_dashboard')
+    from datetime import datetime, timedelta
+    from django.db.models import Sum, F, Count
+    import json
     
-    start_date = request.GET.get('start_date')
-    end_date = request.GET.get('end_date')
+    date_from = request.GET.get('date_from', '')
+    date_to = request.GET.get('date_to', '')
     
-    if not start_date:
-        start_date = datetime.now().replace(day=1).strftime('%Y-%m-%d')
-    if not end_date:
-        end_date = datetime.now().strftime('%Y-%m-%d')
+    try:
+        date_from = datetime.strptime(date_from, '%Y-%m-%d') if date_from else datetime.now() - timedelta(days=30)
+        date_to = datetime.strptime(date_to, '%Y-%m-%d') if date_to else datetime.now()
+        # Ensure date_to includes the entire day
+        date_to = date_to.replace(hour=23, minute=59, second=59)
+    except ValueError:
+        date_from = datetime.now() - timedelta(days=30)
+        date_to = datetime.now().replace(hour=23, minute=59, second=59)
     
-    # Convert to datetime objects
-    start_date = datetime.strptime(start_date, '%Y-%m-%d')
-    end_date = datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)  # Include end date
+    # Sales metrics
+    sales = Sale.objects.filter(transaction_date__range=[date_from, date_to])
+    total_sales = sales.aggregate(total=Sum('total_amount'))['total'] or 0
+    sales_count = sales.count()
     
-    sales = Sale.objects.filter(
-        transaction_date__gte=start_date,
-        transaction_date__lt=end_date
-    )
+    # Product metrics
+    total_products = Product.objects.count()
+    low_stock = Product.objects.filter(stock__lte=F('minimum_stock_level')).count()
     
-    total_revenue = sales.aggregate(total=Sum('total_amount'))['total'] or 0
-    total_sales = sales.count()
-    average_order_value = total_revenue / total_sales if total_sales > 0 else 0
+    # Top selling products
+    top_products = list(SaleItem.objects.filter(
+        sale__transaction_date__range=[date_from, date_to]
+    ).values(
+        'product__product_name'
+    ).annotate(
+        total_sold=Sum('quantity')
+    ).order_by('-total_sold')[:10])
     
-    total_products_sold = SaleItem.objects.filter(
-        sale__transaction_date__gte=start_date,
-        sale__transaction_date__lt=end_date
-    ).aggregate(total=Sum('quantity'))['total'] or 0
+    # Process top products data
+    top_products_labels = []
+    top_products_data = []
+    if top_products:
+        top_products_labels = [str(item['product__product_name']) for item in top_products]
+        top_products_data = [float(item['total_sold']) for item in top_products]
     
-    daily_revenue = sales.annotate(
-        date=TruncDate('transaction_date')
-    ).values('date').annotate(
-        revenue=Sum('total_amount')
-    ).order_by('date')
+    # Process daily sales data
+    daily_sales = []
+    daily_labels = []
+    current = date_from
+    while current <= date_to:
+        current_date = current.date()
+        daily_labels.append(current_date.strftime('%Y-%m-%d'))
+        day_sales = sales.filter(
+            transaction_date__date=current_date
+        ).aggregate(
+            total=Sum('total_amount')
+        )['total'] or 0
+        daily_sales.append(float(day_sales))
+        current += timedelta(days=1)
     
-    revenue_labels = [item['date'].strftime('%b %d') for item in daily_revenue]
-    revenue_data = [float(item['revenue']) for item in daily_revenue]
-    
-    # Get category sales data
     category_sales = SaleItem.objects.filter(
-        sale__transaction_date__gte=start_date,
-        sale__transaction_date__lt=end_date
+        sale__transaction_date__range=[date_from, date_to]
     ).values(
         'product__category__category_name'
     ).annotate(
-        total_sales=Sum('quantity')
-    ).order_by('-total_sales')[:5]
+        total_sales=Sum(F('quantity') * F('unit_price_at_sale')),
+        items_sold=Sum('quantity')
+    ).order_by('-total_sales')
     
-    category_labels = [item['product__category__category_name'] for item in category_sales]
-    category_data = [item['total_sales'] for item in category_sales]
-    
-    top_products = SaleItem.objects.filter(
-        sale__transaction_date__gte=start_date,
-        sale__transaction_date__lt=end_date
-    ).values(
-        'product__product_name',
-        'product__category__category_name'
-    ).annotate(
-        total_sold=Sum('quantity'),
-        revenue=Sum(F('quantity') * F('unit_price_at_sale'))
-    ).order_by('-total_sold')[:10]
+    recent_transactions = sales.select_related('cashier').order_by(
+        '-transaction_date'
+    )[:10]
     
     context = {
-        'start_date': start_date,
-        'end_date': end_date - timedelta(days=1),  # Subtract one day to show correct end date
-        'total_revenue': total_revenue,
         'total_sales': total_sales,
-        'average_order_value': average_order_value,
-        'total_products_sold': total_products_sold,
-        'revenue_labels': revenue_labels,
-        'revenue_data': revenue_data,
-        'category_labels': category_labels,
-        'category_data': category_data,
+        'sales_count': sales_count,
+        'total_products': total_products,
+        'low_stock': low_stock,
         'top_products': top_products,
+        'category_sales': category_sales,
+        'recent_transactions': recent_transactions,
+        'date_from': date_from.strftime('%Y-%m-%d'),
+        'date_to': date_to.strftime('%Y-%m-%d'),
+        'daily_labels': json.dumps(daily_labels),
+        'daily_sales': json.dumps(daily_sales),
+        'top_products_labels': json.dumps(top_products_labels),
+        'top_products_data': json.dumps(top_products_data)
     }
     
     return render(request, 'admin_panel/reports/admin_reports.html', context)
@@ -1493,9 +1405,9 @@ def delete_purchase_order(request, purchase_id):
                 messages.success(request, 'Purchase order deleted successfully.')
                 return redirect('crud:admin_purchase_orders')
                     
-                return render(request, 'admin_panel/purchase_orders/delete_purchase_order.html', {
-                        'purchase_order': purchase_order
-                    })
+        return render(request, 'admin_panel/purchase_orders/delete_purchase_order.html', {
+                'purchase_order': purchase_order
+            })
     except Purchase.DoesNotExist:
         messages.error(request, 'Purchase order not found.')
         return redirect('crud:admin_purchase_orders')
@@ -1655,7 +1567,7 @@ def category_list(request):
     return render(request, 'inventory_manager/category/category_list.html', context)
 
 def add_category(request):
-    if not request.user.role == 'inventory_manager':
+    if request.user.role not in ['admin', 'inventory_manager']:
         messages.error(request, 'You do not have permission to access this page.')
         return redirect('crud:user_login')
         
@@ -1677,14 +1589,14 @@ def add_category(request):
             messages.error(request, 'A category with this name already exists.')
         except Exception as e:
             messages.error(request, f'Error creating category: {str(e)}')
-    
+
     return redirect('crud:category_list')
 
 def edit_category(request, category_id):
-    if not request.user.role == 'inventory_manager':
+    if request.user.role not in ['admin', 'inventory_manager']:
         messages.error(request, 'You do not have permission to access this page.')
         return redirect('crud:user_login')
-        
+            
     try:
         category = Category.objects.get(pk=category_id)
     except Category.DoesNotExist:
@@ -1708,7 +1620,7 @@ def edit_category(request, category_id):
             messages.error(request, 'A category with this name already exists.')
         except Exception as e:
             messages.error(request, f'Error updating category: {str(e)}')
-    
+
     return redirect('crud:category_list')
 
 def delete_category(request, category_id):
@@ -1744,7 +1656,6 @@ def view_purchase_order(request, purchase_id):
         
         if request.method == 'POST' and 'mark_as_received' in request.POST:
             if purchase.status == 'pending':
-                # Update each product's stock if not already updated
                 if not purchase.stock_updated:
                     stock_updates = []
                     for item in purchase.items.all():
@@ -1773,6 +1684,41 @@ def view_purchase_order(request, purchase_id):
         messages.error(request, 'Purchase order not found.')
         return redirect('crud:admin_purchase_orders')
 
+
+def inventory_manager_view_purchase_order(request, purchase_id):
+    try:
+        purchase = Purchase.objects.get(id=purchase_id)
+        
+        if request.method == 'POST' and 'mark_as_received' in request.POST:
+            if purchase.status == 'pending':
+                if not purchase.stock_updated:
+                    stock_updates = []
+                    for item in purchase.items.all():
+                        product = item.product
+                        old_stock = product.stock
+                        product.stock += item.quantity
+                        product.save()
+                        stock_updates.append(f"{product.product_name}: {old_stock} → {product.stock} (+{item.quantity})")
+                    purchase.stock_updated = True
+                
+                purchase.status = 'received'
+                purchase.received_by = request.user
+                purchase.save()
+                
+                if stock_updates:
+                    message = "Purchase order marked as received. Stock updates:\n" + "\n".join(stock_updates)
+                    messages.success(request, message)
+            else:
+                messages.error(request, 'Only pending purchase orders can be marked as received.')
+        
+        # Always render the template instead of redirecting
+        return render(request, 'inventory_manager/purchase_order/inventory_manager_view_purchase_order.html', {
+            'purchase_order': purchase
+        })
+    except Purchase.DoesNotExist:
+        messages.error(request, 'Purchase order not found.')
+        return redirect('crud:purchase_order')
+    
 # Add a function to update stock for already received orders
 @login_required
 @admin_required
@@ -1799,18 +1745,23 @@ def update_received_order_stock(request, purchase_id):
     
     return redirect('crud:view_purchase_order', purchase_id=purchase_id)
 
+@login_required
 def cancel_purchase_order(request, purchase_id):
+    if not request.user.role == 'inventory_manager':
+        messages.error(request, 'You do not have permission to access this page.')
+        return redirect('crud:user_login')
+        
     purchase_order = get_object_or_404(Purchase, pk=purchase_id)
     if request.method == 'POST':
         purchase_order.status = 'cancelled'
         purchase_order.save()
         messages.info(request, f"Purchase Order #{purchase_id} has been cancelled.")
-        return redirect('crud:admin_purchase_orders')
+        return redirect('crud:purchase_orders')
     
     context = {
         'purchase_order': purchase_order
     }
-    return render(request, 'admin_panel/purchase_orders/cancel_purchase_order.html', context)
+    return render(request, 'inventory_manager/purchase_order/cancel_purchase_order.html', context)
 
 def inventory_products(request):
     if not request.user.role == 'inventory_manager':
@@ -2111,9 +2062,9 @@ def export_sales(request):
         response = HttpResponse(content_type='text/csv')
         response['Content-Disposition'] = f'attachment; filename="sales_report_{date_from.strftime("%Y%m%d")}_{date_to.strftime("%Y%m%d")}.csv"'
     
-        writer = csv.writer(response)
-        writer.writerow(['Date', 'Transaction ID', 'Cashier', 'Items', 'Total Amount', 'Discount', 'VAT'])
-        writer.writerow(['Date', 'Transaction ID', 'Cashier', 'Items', 'Total Amount', 'Discount', 'VAT'])
+    writer = csv.writer(response)
+    writer.writerow(['Date', 'Transaction ID', 'Cashier', 'Items', 'Total Amount', 'Discount', 'VAT'])
+    writer.writerow(['Date', 'Transaction ID', 'Cashier', 'Items', 'Total Amount', 'Discount', 'VAT'])
     
     for sale in sales:
         writer.writerow([
@@ -2285,7 +2236,7 @@ def get_top_products(request):
             'product__product_name'
         ).annotate(
             total_quantity=Sum('quantity'),
-            total_amount=Sum(F('quantity') * F('price'))
+            total_amount=Sum(F('quantity') * F('unit_price_at_sale'))
         ).order_by('-total_quantity')[:10]
         
         data = {
@@ -2700,4 +2651,146 @@ def view_stock_adjustment(request, adjustment_id):
     except StockAdjustment.DoesNotExist:
         messages.error(request, 'Stock adjustment not found.')
         return redirect('crud:stock_adjustments')
+    
+def admin_dashboard_data(request):
+    if not request.user.is_authenticated or not request.user.is_staff:
+        return JsonResponse({'error': 'Unauthorized'}, status=401)
+
+    try:
+        # Calculate date ranges
+        today = timezone.now().date()
+        thirty_days_ago = today - timedelta(days=30)
+        previous_thirty_days = thirty_days_ago - timedelta(days=30)
+
+        # Get current period sales
+        current_period_sales = Sale.objects.filter(
+            transaction_date__date__gte=thirty_days_ago,
+            transaction_date__date__lte=today
+        )
+        
+        previous_period_sales = Sale.objects.filter(
+            transaction_date__date__gte=previous_thirty_days,
+            transaction_date__date__lte=thirty_days_ago
+        )
+
+        # Calculate total sales amount
+        total_sales = current_period_sales.aggregate(
+            total=Sum('total_amount')
+        )['total'] or 0
+
+        previous_sales = previous_period_sales.aggregate(
+            total=Sum('total_amount')
+        )['total'] or 0
+
+        # Calculate sales change percentage
+        sales_change = ((total_sales - previous_sales) / previous_sales * 100) if previous_sales > 0 else 0
+
+        # Get transaction counts
+        total_transactions = current_period_sales.count()
+        previous_transactions = previous_period_sales.count()
+        
+        # Calculate transaction change percentage
+        transaction_change = (
+            ((total_transactions - previous_transactions) / previous_transactions * 100)
+            if previous_transactions > 0 else 0
+        )
+
+        # Get product statistics
+        total_products = Product.objects.count()
+        out_of_stock = Product.objects.filter(stock=0).count()
+        low_stock = Product.objects.filter(
+            stock__gt=0,
+            stock__lte=F('minimum_stock_level')
+        ).count()
+
+        # Get user metrics
+        total_users = User.objects.count()
+        active_users = User.objects.filter(last_login__date=today.date()).count()
+
+        # Get daily sales data (last 7 days)
+        daily_sales_data = []
+        daily_sales_labels = []
+        
+        for i in range(6, -1, -1):
+            date = today - timedelta(days=i)
+            daily_total = Sale.objects.filter(
+                transaction_date__date=date
+            ).aggregate(
+                total=Sum('total_amount')
+            )['total'] or 0
+            
+            daily_sales_data.append(float(daily_total))
+            daily_sales_labels.append(date.strftime('%b %d'))
+
+        # Get top products by sales (last 30 days)
+        top_products = SaleItem.objects.filter(
+            sale__transaction_date__date__gte=thirty_days_ago
+        ).values(
+            'product__product_name'
+        ).annotate(
+            total_sales=Sum(F('quantity') * F('unit_price_at_sale'))
+        ).order_by('-total_sales')[:5]
+
+        top_products_labels = [item['product__product_name'] for item in top_products]
+        top_products_data = [float(item['total_sales']) for item in top_products]
+
+        # Get sales by category (last 30 days)
+        category_sales = SaleItem.objects.filter(
+            sale__transaction_date__date__gte=thirty_days_ago
+        ).values(
+            'product__category__category_name'
+        ).annotate(
+            total_sales=Sum(F('quantity') * F('unit_price_at_sale'))
+        ).order_by('-total_sales')
+
+        category_labels = [item['product__category__category_name'] for item in category_sales]
+        category_data = [float(item['total_sales']) for item in category_sales]
+
+        # Get stock status data
+        stock_status = {
+            'In Stock': Product.objects.filter(stock__gt=F('minimum_stock_level')).count(),
+            'Low Stock': Product.objects.filter(stock__gt=0, stock__lte=F('minimum_stock_level')).count(),
+            'Out of Stock': Product.objects.filter(stock=0).count()
+        }
+
+        stock_labels = list(stock_status.keys())
+        stock_data = list(stock_status.values())
+
+        # Get recent activities
+        recent_activities = []
+        recent_sales = Sale.objects.select_related('cashier').order_by('-transaction_date')[:5]
+
+        for sale in recent_sales:
+            recent_activities.append({
+                'icon': 'shopping_cart',
+                'description': f'New sale #{sale.id} - {sale.total_amount} PHP by {sale.cashier.get_full_name() if sale.cashier else "System"}',
+                'timestamp': sale.transaction_date.isoformat()
+            })
+
+        # Prepare response data
+        response_data = {
+            'total_sales': float(total_sales),
+            'sales_change': float(sales_change),
+            'total_transactions': total_transactions,
+            'transaction_change': float(transaction_change),
+            'total_products': total_products,
+            'low_stock': low_stock,
+            'out_of_stock': out_of_stock,
+            'total_users': total_users,
+            'active_users': active_users,
+            'daily_sales_data': daily_sales_data,
+            'daily_sales_labels': daily_sales_labels,
+            'top_products_data': top_products_data,
+            'top_products_labels': top_products_labels,
+            'category_data': category_data,
+            'category_labels': category_labels,
+            'stock_data': stock_data,
+            'stock_labels': stock_labels,
+            'recent_activities': recent_activities
+        }
+
+        return JsonResponse(response_data)
+
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
     

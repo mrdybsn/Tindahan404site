@@ -72,7 +72,6 @@
                             {% endif %}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                            <a href="{% url 'crud:edit_supplier' supplier.id %}" class="text-blue-600 hover:text-blue-900 mr-3">Edit</a>
                             {% if supplier.is_active %}
                             <form method="post" action="{% url 'crud:deactivate_supplier' supplier.id %}" class="inline">
                                 {% csrf_token %}

@@ -15,7 +15,7 @@
             This action cannot be undone.
         </p>
 
-        <form method="POST" action="{% url 'crud:delete_category' category.id %}" class="flex justify-center gap-4">
+        <form method="POST" action="{% url 'crud:admin_delete_category' category.id %}" class="flex justify-center gap-4">
             {% csrf_token %}
             <a href="{% url 'crud:admin_categories' %}"
             class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition">Cancel</a>

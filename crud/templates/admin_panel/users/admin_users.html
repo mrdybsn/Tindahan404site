@@ -8,7 +8,10 @@
     .modal-backdrop {
         display: none;
         position: fixed;
-        inset: 0;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
         background-color: rgba(0, 0, 0, 0.5);
         z-index: 40;
     }
@@ -22,6 +25,7 @@
         z-index: 50;
         width: 100%;
         max-width: 28rem;
+        padding: 1rem;
     }
 
     body.modal-open {
@@ -85,8 +89,9 @@
                                     <a href="{% url 'crud:edit_user' user.id %}" class="text-blue-600 hover:text-blue-800">
                                         <span class="material-icons">edit</span>
                                     </a>
-                                    <button onclick="showDeleteModal('{{ user.id }}', '{{ user.username|escapejs }}')" 
-                                            class="text-red-600 hover:text-red-800 bg-transparent border-none cursor-pointer">
+                                    <button type="button" 
+                                            onclick="showDeleteModal('{{ user.id }}', '{{ user.username|escapejs }}')" 
+                                            class="text-red-600 hover:text-red-800 bg-transparent border-none cursor-pointer p-0 m-0">
                                         <span class="material-icons">delete</span>
                                     </button>
                                 </div>
@@ -152,7 +157,7 @@
 </div>
 
 <!-- Delete Modal Backdrop -->
-<div id="modalBackdrop" class="modal-backdrop"></div>
+<div id="modalBackdrop" class="modal-backdrop" onclick="hideDeleteModal()"></div>
 
 <!-- Delete Modal -->
 <div id="deleteModal" class="modal-container">
@@ -168,11 +173,11 @@
             <form id="deleteForm" method="POST" class="flex justify-center gap-3">
                 {% csrf_token %}
                 <button type="button" onclick="hideDeleteModal()" 
-                        class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">
+                        class="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 focus:outline-none focus:ring-2 focus:ring-gray-300">
                     Cancel
                 </button>
                 <button type="submit" 
-                        class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition">
+                        class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500">
                     Delete
                 </button>
             </form>
@@ -183,33 +188,70 @@
 
 {% block extra_js %}
 <script>
+    // Initialize modal elements
+    let modalBackdrop, modalContainer, deleteForm;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        modalBackdrop = document.getElementById('modalBackdrop');
+        modalContainer = document.getElementById('deleteModal');
+        deleteForm = document.getElementById('deleteForm');
+        
+        console.log('Modal elements initialized:', {
+            backdrop: !!modalBackdrop,
+            modal: !!modalContainer,
+            form: !!deleteForm
+        });
+
+        // Add ESC key handler
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                hideDeleteModal();
+            }
+        });
+    });
+
     function showDeleteModal(userId, username) {
+        console.log('Showing delete modal for user:', userId, username);
+        
+        if (!modalContainer || !modalBackdrop || !deleteForm) {
+            console.error('Modal elements not properly initialized');
+            return;
+        }
+        
         // Update form action and user name
-        const form = document.getElementById('deleteForm');
-        const userText = document.getElementById('userToDelete');
-        form.action = "{% url 'crud:delete_user' 0 %}".replace('0', userId);
-        userText.textContent = username;
+        const deleteUrl = "{% url 'crud:delete_user' 0 %}".replace('0', userId);
+        console.log('Delete URL:', deleteUrl);
+        
+        deleteForm.action = deleteUrl;
+        document.getElementById('userToDelete').textContent = `"${username}"`;
         
         // Show modal and backdrop
-        document.getElementById('modalBackdrop').style.display = 'block';
-        document.getElementById('deleteModal').style.display = 'block';
+        modalBackdrop.style.display = 'block';
+        modalContainer.style.display = 'block';
         document.body.classList.add('modal-open');
     }
 
     function hideDeleteModal() {
-        // Hide modal and backdrop
-        document.getElementById('modalBackdrop').style.display = 'none';
-        document.getElementById('deleteModal').style.display = 'none';
+        console.log('Hiding delete modal');
+        
+        if (!modalContainer || !modalBackdrop) {
+            console.error('Modal elements not properly initialized');
+            return;
+        }
+        
+        modalBackdrop.style.display = 'none';
+        modalContainer.style.display = 'none';
         document.body.classList.remove('modal-open');
     }
 
-    // Close modal when clicking backdrop
-    document.getElementById('modalBackdrop').addEventListener('click', hideDeleteModal);
-
-    // Close modal when pressing ESC key
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            hideDeleteModal();
+    // Add form submit handler
+    document.addEventListener('DOMContentLoaded', function() {
+        if (deleteForm) {
+            deleteForm.addEventListener('submit', function(e) {
+                console.log('Form submitted');
+                const userId = this.action.split('/').filter(Boolean).pop();
+                console.log('Deleting user:', userId);
+            });
         }
     });
 </script>

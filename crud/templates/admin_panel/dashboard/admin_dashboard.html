@@ -1,398 +1,326 @@
 {% extends 'layout/base_admin.html' %}
 {% load static %}
 
-{% block title %}Admin Dashboard{% endblock %}
-
-{% block extra_css %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.css">
-<style>
-    .metric-card {
-        transition: transform 0.2s;
-    }
-    .metric-card:hover {
-        transform: translateY(-2px);
-    }
-    .chart-container {
-        position: relative;
-        height: 300px;
-        width: 100%;
-    }
-    .activity-icon {
-        width: 40px;
-        height: 40px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 50%;
-    }
-    .activity-icon.sale {
-        background-color: rgba(13, 148, 136, 0.1);
-        color: #0d9488;
-    }
-    .activity-icon.stock {
-        background-color: rgba(79, 70, 229, 0.1);
-        color: #4f46e5;
-    }
-    .loading {
-        opacity: 0.7;
-        position: relative;
-    }
-    .loading::after {
-        content: "";
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        width: 24px;
-        height: 24px;
-        margin: -12px 0 0 -12px;
-        border: 2px solid transparent;
-        border-top-color: #0d9488;
-        border-radius: 50%;
-        animation: loading-spinner 0.8s linear infinite;
-    }
-    @keyframes loading-spinner {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-    }
-    .error-state {
-        opacity: 0.5;
-        position: relative;
-    }
-    .error-state::after {
-        content: "⚠️";
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        font-size: 24px;
-    }
-</style>
-{% endblock %}
-
 {% block content %}
 <div class="p-4">
     <!-- KPI Cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <!-- Sales Card -->
-        <div class="bg-white rounded-lg shadow p-6">
+        <div class="bg-white rounded-lg shadow p-6 transform hover:scale-105 transition-transform duration-200">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm text-gray-500">Total Sales (30 Days)</p>
-                    <h2 class="text-2xl font-bold" data-kpi="total-sales">₱{{ total_sales|floatformat:2 }}</h2>
-                </div>
-                <div class="text-right">
-                    <p class="text-sm {% if sales_change >= 0 %}text-green-500{% else %}text-red-500{% endif %}" data-kpi="sales-change">
-                        {{ sales_change|floatformat:1 }}%
+                    <p class="text-sm text-gray-500">Weekly Sales</p>
+                    <h2 class="text-2xl font-bold" id="total-sales">₱{{ total_sales|floatformat:2 }}</h2>
+                    <p class="text-sm mt-2">
+                        <span id="sales-change" class="{% if sales_wow_direction == 'up' %}text-green-500{% else %}text-red-500{% endif %}">
+                            {% if sales_wow_direction == 'up' %}↑{% else %}↓{% endif %}
+                            {{ sales_wow_change|floatformat:1 }}%
+                        </span>
+                        vs last week
                     </p>
-                    <p class="text-xs text-gray-500">vs last month</p>
+                </div>
+                <div class="p-3 bg-blue-100 rounded-full">
+                    <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+            </div>
         </div>
-            </div>
-            </div>
 
         <!-- Transactions Card -->
-        <div class="bg-white rounded-lg shadow p-6">
+        <div class="bg-white rounded-lg shadow p-6 transform hover:scale-105 transition-transform duration-200">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm text-gray-500">Transactions (30 Days)</p>
-                    <h2 class="text-2xl font-bold" data-kpi="total-transactions">{{ total_transactions }}</h2>
-                </div>
-                <div class="text-right">
-                    <p class="text-sm {% if transaction_change >= 0 %}text-green-500{% else %}text-red-500{% endif %}" data-kpi="transaction-change">
-                        {{ transaction_change|floatformat:1 }}%
+                    <p class="text-sm text-gray-500">Weekly Transactions</p>
+                    <h2 class="text-2xl font-bold" id="total-transactions">{{ transaction_count }}</h2>
+                    <p class="text-sm mt-2">
+                        <span id="transactions-change" class="{% if transactions_wow_direction == 'up' %}text-green-500{% else %}text-red-500{% endif %}">
+                            {% if transactions_wow_direction == 'up' %}↑{% else %}↓{% endif %}
+                            {{ transactions_wow_change|floatformat:1 }}%
+                        </span>
+                        vs last week
                     </p>
-                    <p class="text-xs text-gray-500">vs last month</p>
                 </div>
-                </div>
-            </div>
-
-        <!-- Products Card -->
-        <div class="bg-white rounded-lg shadow p-6">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm text-gray-500">Total Products</p>
-                    <h2 class="text-2xl font-bold" data-kpi="total-products">{{ total_products }}</h2>
-                </div>
-                <div class="text-right">
-                    <p class="text-sm text-red-500" data-kpi="out-of-stock">{{ out_of_stock }}</p>
-                    <p class="text-xs text-gray-500">Out of Stock</p>
-                </div>
+                <div class="p-3 bg-green-100 rounded-full">
+                    <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                    </svg>
                 </div>
             </div>
+        </div>
 
-        <!-- Users Card -->
-        <div class="bg-white rounded-lg shadow p-6">
+        <!-- Product Status Card -->
+        <div class="bg-white rounded-lg shadow p-6 transform hover:scale-105 transition-transform duration-200">
             <div class="flex items-center justify-between">
                 <div>
-                    <p class="text-sm text-gray-500">Total Users</p>
-                    <h2 class="text-2xl font-bold" data-kpi="total-users">{{ total_users }}</h2>
+                    <p class="text-sm text-gray-500">Product Status</p>
+                    <h2 class="text-2xl font-bold" id="low-stock">{{ low_stock_count }}</h2>
+                    <p class="text-sm mt-2">
+                        <span class="text-yellow-500">Low Stock Items</span>
+                    </p>
                 </div>
-                <div class="text-right">
-                    <p class="text-sm text-green-500" data-kpi="active-users">{{ active_users }}</p>
-                    <p class="text-xs text-gray-500">Active Today</p>
+                <div class="p-3 bg-yellow-100 rounded-full">
+                    <svg class="w-8 h-8 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                    </svg>
                 </div>
-                    </div>
+            </div>
+        </div>
+
+        <!-- Recent Stock Movements -->
+        <div class="bg-white rounded-lg shadow p-6 transform hover:scale-105 transition-transform duration-200">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-500">Stock Movements</p>
+                    <h2 class="text-2xl font-bold" id="stock-movements">{{ stock_movement_count }}</h2>
+                    <p class="text-sm mt-2">
+                        <span class="text-purple-500">Last 24 hours</span>
+                    </p>
                 </div>
+                <div class="p-3 bg-purple-100 rounded-full">
+                    <svg class="w-8 h-8 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Charts Grid -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
         <!-- Sales Trend Chart -->
-        <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold mb-4">Sales Trend (Last 7 Days)</h3>
-            <canvas id="salesChart" class="w-full h-64"></canvas>
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold mb-4">Sales Trend (Last 30 Days)</h3>
+            <div style="height: 300px;">
+                <canvas id="salesTrendChart"></canvas>
+            </div>
         </div>
 
         <!-- Top Products Chart -->
-        <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold mb-4">Top Selling Products</h3>
-            <canvas id="productsChart" class="w-full h-64"></canvas>
-        </div>
-
-        <!-- Category Distribution Chart -->
-        <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold mb-4">Product Categories</h3>
-            <canvas id="categoryChart" class="w-full h-64"></canvas>
-        </div>
-
-        <!-- Stock Status Chart -->
-        <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold mb-4">Stock Status</h3>
-            <canvas id="stockChart" class="w-full h-64"></canvas>
-        </div>
-
-        <!-- User Activity Chart -->
-        <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold mb-4">User Activity (Last 7 Days)</h3>
-            <canvas id="userActivityChart" class="w-full h-64"></canvas>
-        </div>
-
-        <!-- Recent Activity -->
-        <div class="bg-white rounded-lg shadow p-6">
-            <h3 class="text-lg font-semibold mb-4">Recent Activity</h3>
-            <div class="space-y-4" id="recentActivities">
-                {% for activity in recent_activities %}
-                <div class="flex items-start space-x-3">
-                    <span class="material-icons text-gray-500">{{ activity.icon }}</span>
-                            <div>
-                        <p class="text-sm">{{ activity.description }}</p>
-                        <p class="text-xs text-gray-500">{{ activity.timestamp }}</p>
-                            </div>
-                        </div>
-                        {% endfor %}
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold mb-4">Top Products</h3>
+            <div style="height: 300px;">
+                <canvas id="topProductsChart"></canvas>
             </div>
+        </div>
+
+        <!-- Category Performance -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold mb-4">Category Performance</h3>
+            <div style="height: 300px;">
+                <canvas id="categoryChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Stock Level Status -->
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-semibold mb-4">Stock Level Status</h3>
+            <div style="height: 300px;">
+                <canvas id="stockLevelChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Activity -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h3 class="text-lg font-semibold mb-4">Recent Activity</h3>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead>
+                    <tr>
+                        <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                        <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                        <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
+                        <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for activity in recent_activities %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ activity.date }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full 
+                                {% if activity.type == 'sale' %}bg-green-100 text-green-800
+                                {% elif activity.type == 'purchase' %}bg-blue-100 text-blue-800
+                                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                                {{ activity.type|title }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ activity.details }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₱{{ activity.amount|floatformat:2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">No recent activity</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
 
-    {% endblock %}
-
-    {% block extra_js %}
+<!-- Chart.js -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script>
-    // Utility function to create charts
-    function createChart(ctx, type, labels, data, options = {}) {
-        const defaultOptions = {
-            responsive: true,
+
+<!-- Dashboard Charts Initialization -->
+<script>
+    // Utility function for formatting currency
+    const formatCurrency = (value) => {
+        return new Intl.NumberFormat('en-PH', {
+            style: 'currency',
+            currency: 'PHP'
+        }).format(value);
+    };
+
+    // Sales Trend Chart
+    const salesTrendCtx = document.getElementById('salesTrendChart').getContext('2d');
+    new Chart(salesTrendCtx, {
+        type: 'line',
+        data: {
+            labels: {{ daily_sales_labels|safe }},
+            datasets: [{
+                label: 'Daily Sales',
+                data: {{ daily_sales_data }},
+                fill: true,
+                borderColor: 'rgb(59, 130, 246)',
+                backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                tension: 0.4
+            }]
+        },
+        options: {
             maintainAspectRatio: false,
-            animation: {
-                duration: 1000,
-                easing: 'easeInOutQuart'
-            }
-        };
-
-        const config = {
-            type: type,
-            data: {
-                labels: labels,
-                datasets: [{
-                    data: data,
-                    backgroundColor: [
-                        '#3B82F6', // blue-500
-                        '#10B981', // green-500
-                        '#F59E0B', // yellow-500
-                        '#EF4444', // red-500
-                        '#8B5CF6', // purple-500
-                        '#EC4899', // pink-500
-                        '#6366F1', // indigo-500
-                        '#14B8A6'  // teal-500
-                    ]
-                }]
-            },
-            options: { ...defaultOptions, ...options }
-        };
-
-        if (type === 'line') {
-            config.data.datasets[0].borderColor = config.data.datasets[0].backgroundColor[0];
-            config.data.datasets[0].tension = 0.4;
-            config.data.datasets[0].fill = true;
-            config.data.datasets[0].backgroundColor = 'rgba(59, 130, 246, 0.1)'; // blue-500 with opacity
-        }
-
-        return new Chart(ctx, config);
-    }
-
-    // Initialize charts
-    let salesChart, productsChart, categoryChart, stockChart, userActivityChart;
-
-    function initializeCharts(data) {
-        // Sales Trend Chart
-        const salesCtx = document.getElementById('salesChart').getContext('2d');
-        salesChart = createChart(salesCtx, 'line', data.sales_labels, data.sales_data, {
-                plugins: {
-                legend: { display: false }
-                },
-                scales: {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                        callback: value => '₱' + value.toLocaleString()
-                    }
-                }
-            }
-        });
-
-        // Top Products Chart
-        const productsCtx = document.getElementById('productsChart').getContext('2d');
-        productsChart = createChart(productsCtx, 'bar', data.product_labels, data.product_data, {
             plugins: {
-                legend: { display: false }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
-                    }
-                }
-            }
-        });
-
-        // Category Distribution Chart
-        const categoryCtx = document.getElementById('categoryChart').getContext('2d');
-        categoryChart = createChart(categoryCtx, 'doughnut', data.category_labels, data.category_data, {
-                plugins: {
-                    legend: {
-                        position: 'right',
-                    labels: {
-                        boxWidth: 12
-                    }
-                }
-            }
-        });
-
-        // Stock Status Chart
-        const stockCtx = document.getElementById('stockChart').getContext('2d');
-        stockChart = createChart(stockCtx, 'pie', data.stock_status_labels, data.stock_status_data, {
-            plugins: {
-                legend: {
-                    position: 'right',
-                    labels: {
-                        boxWidth: 12
-                    }
-                }
-            }
-        });
-
-        // User Activity Chart
-        const userActivityCtx = document.getElementById('userActivityChart').getContext('2d');
-        userActivityChart = createChart(userActivityCtx, 'line', data.user_activity_labels, data.user_activity_data, {
-            plugins: {
-                legend: { display: false }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        stepSize: 1
-                    }
-                }
-            }
-        });
-    }
-
-    // Update charts with new data
-    function updateCharts(data) {
-        // Update Sales Chart
-        salesChart.data.labels = data.sales_labels;
-        salesChart.data.datasets[0].data = data.sales_data;
-        salesChart.update();
-
-        // Update Products Chart
-        productsChart.data.labels = data.product_labels;
-        productsChart.data.datasets[0].data = data.product_data;
-        productsChart.update();
-
-        // Update Category Chart
-        categoryChart.data.labels = data.category_labels;
-        categoryChart.data.datasets[0].data = data.category_data;
-        categoryChart.update();
-
-        // Update Stock Chart
-        stockChart.data.labels = data.stock_status_labels;
-        stockChart.data.datasets[0].data = data.stock_status_data;
-        stockChart.update();
-
-        // Update User Activity Chart
-        userActivityChart.data.labels = data.user_activity_labels;
-        userActivityChart.data.datasets[0].data = data.user_activity_data;
-        userActivityChart.update();
-
-        // Update KPI cards
-        document.querySelector('[data-kpi="total-sales"]').textContent = '₱' + data.total_sales.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
-        document.querySelector('[data-kpi="sales-change"]').textContent = data.sales_change.toFixed(1) + '%';
-        document.querySelector('[data-kpi="total-transactions"]').textContent = data.total_transactions;
-        document.querySelector('[data-kpi="transaction-change"]').textContent = data.transaction_change.toFixed(1) + '%';
-        document.querySelector('[data-kpi="total-products"]').textContent = data.total_products;
-        document.querySelector('[data-kpi="out-of-stock"]').textContent = data.out_of_stock;
-        document.querySelector('[data-kpi="total-users"]').textContent = data.total_users;
-        document.querySelector('[data-kpi="active-users"]').textContent = data.active_users;
-
-        // Update recent activities
-        const activitiesContainer = document.getElementById('recentActivities');
-        activitiesContainer.innerHTML = data.recent_activities.map(activity => `
-            <div class="flex items-start space-x-3">
-                <span class="material-icons text-gray-500">${activity.icon}</span>
-                <div>
-                    <p class="text-sm">${activity.description}</p>
-                    <p class="text-xs text-gray-500">${activity.timestamp}</p>
-                </div>
-            </div>
-        `).join('');
-    }
-
-    // Initialize charts on page load
-    document.addEventListener('DOMContentLoaded', function() {
-        const initialData = {
-            sales_labels: {{ sales_labels|safe }},
-            sales_data: {{ sales_data|safe }},
-            product_labels: {{ product_labels|safe }},
-            product_data: {{ product_data|safe }},
-            category_labels: {{ category_labels|safe }},
-            category_data: {{ category_data|safe }},
-            stock_status_labels: {{ stock_status_labels|safe }},
-            stock_status_data: {{ stock_status_data|safe }},
-            user_activity_labels: {{ user_activity_labels|safe }},
-            user_activity_data: {{ user_activity_data|safe }}
-        };
-
-        // Check if we have data before initializing charts
-        if (initialData.sales_labels && initialData.sales_labels.length > 0) {
-            initializeCharts(initialData);
-
-            // Refresh data every 30 seconds
-            setInterval(function() {
-                fetch('{% url "crud:admin_dashboard_data" %}')
-                    .then(response => response.json())
-                    .then(data => {
-                        if (!data.error) {
-                            updateCharts(data);
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return 'Sales: ' + formatCurrency(context.raw);
                         }
-                    })
-                    .catch(error => console.error('Error fetching dashboard data:', error));
-            }, 30000);
-            } else {
-            console.error('No initial data available for charts');
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return formatCurrency(value);
+                        }
+                    }
+                }
+            }
         }
     });
+
+    // Top Products Chart
+    const topProductsCtx = document.getElementById('topProductsChart').getContext('2d');
+    new Chart(topProductsCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ top_products_labels|safe }},
+            datasets: [{
+                label: 'Revenue',
+                data: {{ top_products_revenue }},
+                backgroundColor: 'rgba(59, 130, 246, 0.8)',
+                borderColor: 'rgb(59, 130, 246)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return 'Revenue: ' + formatCurrency(context.raw);
+                        }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return formatCurrency(value);
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Category Performance Chart
+    const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+    new Chart(categoryCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ category_labels|safe }},
+            datasets: [{
+                data: {{ category_data }},
+                backgroundColor: [
+                    'rgba(59, 130, 246, 0.8)',
+                    'rgba(16, 185, 129, 0.8)',
+                    'rgba(245, 158, 11, 0.8)',
+                    'rgba(239, 68, 68, 0.8)',
+                    'rgba(139, 92, 246, 0.8)'
+                ]
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.raw;
+                            const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                            const percentage = ((value / total) * 100).toFixed(1);
+                            return `${context.label}: ${percentage}%`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Stock Level Chart
+    const stockLevelCtx = document.getElementById('stockLevelChart').getContext('2d');
+    new Chart(stockLevelCtx, {
+        type: 'bar',
+        data: {
+            labels: {{ stock_level_labels|safe }},
+            datasets: [{
+                label: 'Current Stock',
+                data: {{ stock_level_data }},
+                backgroundColor: {{ stock_level_colors|safe }},
+                borderColor: {{ stock_level_borders|safe }},
+                borderWidth: 1
+            }]
+        },
+        options: {
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return `Stock: ${context.raw} units`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Auto-refresh every 30 seconds
+    setInterval(function() {
+        window.location.reload();
+    }, 30000);
 </script>
 {% endblock %}

@@ -5,16 +5,16 @@
 
 {% block page_header %}
 <header class="bg-white shadow-sm border-b">
-    <div class="flex items-center justify-between px-8 py-4">
-        <div class="flex items-center space-x-4">
-            <h1 class="text-2xl font-bold text-gray-800">Products</h1>
-        </div>
+        <div class="flex items-center justify-between px-8 py-4">
+            <div class="flex items-center space-x-4">
+                <h1 class="text-2xl font-bold text-gray-800">Products</h1>
+            </div>
         <a href="{% url 'crud:add_product' %}" class="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-opacity-50">
             <span class="material-icons align-middle mr-1">add</span>
             Add Product
         </a>
-    </div>
-</header>
+        </div>
+    </header>
 {% endblock %}
 
 {% block content %}
@@ -67,44 +67,44 @@
         </form>
     </div>
 
-    {% if messages %}
+        {% if messages %}
     <div class="p-4">
-        {% for message in messages %}
-        <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-red-100 text-red-700{% elif message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
-            {{ message }}
+            {% for message in messages %}
+            <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-red-100 text-red-700{% elif message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+                {{ message }}
+            </div>
+            {% endfor %}
         </div>
-        {% endfor %}
-    </div>
-    {% endif %}
+        {% endif %}
 
-    <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-            <thead class="bg-gray-50">
-                <tr>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Image</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Price</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock</th>
                     <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-            </thead>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
             <tbody class="bg-white divide-y divide-gray-200" id="productsTableBody">
-                {% for product in products %}
+                        {% for product in products %}
                 <tr>
                     <td class="px-6 py-4 whitespace-nowrap">
-                        {% if product.image %}
+                                {% if product.image %}
                         <img src="{{ product.image.url }}" alt="{{ product.product_name }}" class="h-12 w-12 object-cover rounded">
-                        {% else %}
+                                {% else %}
                         <div class="h-12 w-12 bg-gray-200 rounded flex items-center justify-center">
                             <span class="material-icons text-gray-400">image_not_available</span>
                         </div>
-                        {% endif %}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ product.product_name }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ product.category.category_name }}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ product.price }}</td>
+                                {% endif %}
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ product.product_name }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ product.category.category_name }}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ product.price }}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ product.stock }}</td>
                     <td class="px-6 py-4 whitespace-nowrap">
                         <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full {% if product.is_active %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}">
@@ -114,23 +114,23 @@
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div class="flex items-center space-x-3">
                             <a href="{% url 'crud:edit_product' product.product_id %}" class="text-blue-600 hover:text-blue-900">
-                                <span class="material-icons">edit</span>
-                            </a>
+                                        <span class="material-icons">edit</span>
+                                    </a>
                             <a href="{% url 'crud:delete_product' product.product_id %}" class="text-red-600 hover:text-red-900">
-                                <span class="material-icons">delete</span>
-                            </a>
-                        </div>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
+                                        <span class="material-icons">delete</span>
+                                    </a>
+                                </div>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr>
                     <td colspan="7" class="px-6 py-4 text-center text-gray-500">
                         No products found.
                     </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
     </div>
 </div>
 

@@ -18,10 +18,10 @@ urlpatterns = [
     path('admin/users/delete/<int:user_id>/', views.delete_user, name='delete_user'),
 
     path('admin/categories/', views.admin_categories, name='admin_categories'),
-    path('admin/categories/add/', views.add_category, name='add_category'),
-    path('admin/categories/edit/<int:category_id>/', views.edit_category, name='edit_category'),
-    path('admin/categories/delete/<int:category_id>/', views.confirm_delete_category, name='confirm_delete_category'),
-    path('admin/categories/delete/<int:category_id>/confirm/', views.delete_category, name='delete_category'),
+    path('admin/categories/add/', views.admin_add_category, name='admin_add_category'),
+    path('admin/categories/edit/<int:category_id>/', views.admin_edit_category, name='admin_edit_category'),
+    path('admin/categories/delete/<int:category_id>/', views.confirm_delete_category, name='admin_confirm_delete_category'),
+    path('admin/categories/delete/<int:category_id>/confirm/', views.admin_delete_category, name='admin_delete_category'),
 
     path('admin/products/', views.admin_products, name='admin_products'),
     path('admin/products/add/', views.add_product, name='add_product'),
@@ -84,13 +84,16 @@ urlpatterns = [
     
     path('inventory/purchase-orders/', views.purchase_orders, name='purchase_orders'),
     path('inventory/purchase-orders/add/', views.inventory_manager_add_purchase_order, name='inventory_manager_add_purchase_order'),
-    
+    path('inventory/purchase-orders/<int:purchase_id>/edit/', views.edit_purchase_orders, name='edit_purchase_order'),
+    path('inventory/purchase-orders/<int:purchase_id>/cancel/', views.cancel_purchase_order, name='cancel_purchase_order'),
+
     path('inventory/stock-adjustments/', views.stock_adjustments, name='stock_adjustments'),
     path('inventory/stock-adjustments/add/', views.add_stock_adjustment, name='add_stock_adjustment'),
     path('inventory/stock-adjustments/<int:adjustment_id>/', views.get_stock_adjustment, name='get_stock_adjustment'),
     path('inventory/stock-adjustments/<int:adjustment_id>/view/', views.view_stock_adjustment, name='view_stock_adjustment'),
 
     path('inventory/reports/', views.inventory_reports, name='inventory_reports'),
+    path('inventory/view/purchase_orders/', views.inventory_manager_view_purchase_order, name='inventory_manager_view_purchase_order'),
 
     #POS URLs
     path('pos/dashboard/', views.pos_dashboard, name='pos_dashboard'),

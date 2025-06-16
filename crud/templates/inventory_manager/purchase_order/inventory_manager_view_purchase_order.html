@@ -1,0 +1,124 @@
+{% extends 'layout/base_manager.html' %}
+{% load static %}
+
+{% block title %}View Purchase Order{% endblock %}
+
+{% block page_header %}
+<header class="bg-white shadow-sm border-b">
+    <div class="flex items-center justify-between px-8 py-4">
+        <div class="flex items-center space-x-4">
+            <h1 class="text-2xl font-bold text-gray-800">Purchase Order #{{ purchase_order.id }}</h1>
+            <span class="px-3 py-1 rounded-full text-sm font-medium
+                {% if purchase_order.status == 'pending' %}bg-yellow-100 text-yellow-800
+                {% elif purchase_order.status == 'received' %}bg-green-100 text-green-800
+                {% else %}bg-red-100 text-red-800{% endif %}">
+                {{ purchase_order.status|title }}
+            </span>
+        </div>
+        <div class="flex items-center space-x-4">
+            {% if purchase_order.status == 'pending' %}
+            <form method="post" class="inline">
+                {% csrf_token %}
+                <button type="submit" 
+                        name="mark_as_received" 
+                        class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 flex items-center">
+                    <span class="material-icons mr-2">check_circle</span>
+                    Mark as Received
+                </button>
+            </form>
+            <a href="{% url 'crud:edit_purchase_orders' purchase_id=purchase_order.id %}" 
+               class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 flex items-center">
+                <span class="material-icons mr-2">edit</span>
+                Edit
+            </a>
+            {% endif %}
+            {% if purchase_order.status == 'received' and not purchase_order.stock_updated %}
+            <a href="{% url 'crud:update_received_order_stock' purchase_id=purchase_order.id %}" 
+               class="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-opacity-50 flex items-center">
+                <span class="material-icons mr-2">inventory</span>
+                Update Stock
+            </a>
+            {% endif %}
+            <a href="{% url 'crud:admin_purchase_orders' %}" 
+               class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex items-center">
+                <span class="material-icons mr-2">arrow_back</span>
+                Back to List
+            </a>
+        </div>
+    </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    {% if messages %}
+    <div class="mb-6">
+        {% for message in messages %}
+        <div class="p-4 rounded-lg {% if message.tags == 'error' %}bg-red-100 text-red-700{% elif message.tags == 'success' %}bg-green-100 text-green-700{% else %}bg-blue-100 text-blue-700{% endif %}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- Purchase Order Details -->
+    <div class="bg-white rounded-lg shadow-sm p-6">
+        <h2 class="text-lg font-semibold text-gray-800 mb-4">Order Details</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <p class="text-sm text-gray-600">Supplier</p>
+                <p class="text-base font-medium text-gray-900">{{ purchase_order.supplier.company_name }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-600">Order Date</p>
+                <p class="text-base font-medium text-gray-900">{{ purchase_order.purchase_date|date:"M d, Y" }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-600">Expected Delivery</p>
+                <p class="text-base font-medium text-gray-900">{{ purchase_order.expected_delivery|date:"M d, Y" }}</p>
+            </div>
+            <div>
+                <p class="text-sm text-gray-600">Total Cost</p>
+                <p class="text-base font-medium text-gray-900">₱{{ purchase_order.total_cost }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Purchase Items -->
+    <div class="bg-white rounded-lg shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h2 class="text-lg font-semibold text-gray-800">Purchase Items</h2>
+        </div>
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current Stock</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit Cost</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Subtotal</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for item in purchase_order.items.all %}
+                    <tr>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.product.product_name }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.product.stock }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ item.quantity }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ item.unit_cost_at_purchase }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">₱{{ item.subtotal_cost }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="bg-gray-50">
+                    <tr>
+                        <td colspan="3" class="px-6 py-4 text-right text-sm font-medium text-gray-900">Total:</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">₱{{ purchase_order.total_cost }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %} 
